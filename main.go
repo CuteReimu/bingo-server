@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/gorilla/websocket"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -13,7 +12,14 @@ import (
 var port = flag.Int("p", 9999, "listening port")
 var address = flag.String("a", "/ws", "ws address endpoint")
 
-var upGrader = websocket.Upgrader{}
+var upGrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+	Error: func(w http.ResponseWriter, r *http.Request, status int, reason error) {
+		log.WithError(reason).Error("status: ", status)
+	},
+}
 
 func main() {
 	flag.Parse()
@@ -31,16 +37,8 @@ func main() {
 			log.Println(err)
 			return
 		}
-		fmt.Println("连接成功：", r.RemoteAddr)
-		defer func(ws *websocket.Conn) { _ = ws.Close() }(ws)
-		for {
-			mt, message, err := ws.ReadMessage()
-			if err != nil {
-				log.Println(err)
-				break
-			}
-			fmt.Printf("mt: %d, message: %s\n", mt, string(message))
-		}
+		log.Info("连接成功：", r.RemoteAddr)
+		(&Player{}).OnConnect(ws)
 	})
 	fmt.Printf("请访问：ws://127.0.0.1:%d%s\n", *port, *address)
 	_ = http.ListenAndServe(":"+strconv.Itoa(*port), nil)
