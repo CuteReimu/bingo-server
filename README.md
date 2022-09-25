@@ -1,5 +1,10 @@
 # bingo-server
 
+![](https://img.shields.io/github/languages/top/Touhou-Freshman-Camp/bingo-server "语言")
+[![](https://img.shields.io/github/workflow/status/Touhou-Freshman-Camp/bingo-server/Go)](https://github.com/Touhou-Freshman-Camp/bingo-server/actions/workflows/golangci-lint.yml "代码分析")
+[![](https://img.shields.io/github/contributors/Touhou-Freshman-Camp/bingo-server)](https://github.com/Touhou-Freshman-Camp/bingo-server/graphs/contributors "贡献者")
+[![](https://img.shields.io/github/license/Touhou-Freshman-Camp/bingo-server)](https://github.com/Touhou-Freshman-Camp/bingo-server/blob/master/LICENSE "许可协议")
+
 ## 协议
 
 协议全部采用json的格式
