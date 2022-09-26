@@ -12,6 +12,7 @@ type Player struct {
 	name       string
 	token      string // token唯一确定一个角色
 	heartTimer *time.Timer
+	room       *Room
 }
 
 var playerCache = new(sync.Map)
@@ -26,7 +27,12 @@ func (player *Player) OnConnect(conn *websocket.Conn) {
 	player.conn = conn
 	closeFunc := func() { _ = player.conn.Close() }
 	player.heartTimer = time.AfterFunc(time.Minute, closeFunc)
-	defer closeFunc()
+	defer func() {
+		_ = player.conn.Close()
+		if len(player.token) > 0 {
+			playerCache.Delete(player.token)
+		}
+	}()
 	for {
 		mt, buf, err := player.conn.ReadMessage()
 		if err != nil {
@@ -37,6 +43,7 @@ func (player *Player) OnConnect(conn *websocket.Conn) {
 			log.Warn("unsupported message type: ", mt)
 			continue
 		}
+		log.WithField("addr", player.conn.RemoteAddr().String()).Debug("recv: ", string(buf))
 		var message *Message
 		if err = json.Unmarshal(buf, &message); err != nil {
 			log.WithError(err).Error("unmarshal json failed")
@@ -46,13 +53,30 @@ func (player *Player) OnConnect(conn *websocket.Conn) {
 			log.Error("no proto name")
 			continue
 		}
-		handler := handlers[message.Name]
-		if handler == nil {
-			log.Warn("can not find handler: ", message.Name)
-			continue
+		player.Handle(message.Name, message.Data)
+	}
+}
+
+func (player *Player) Handle(name string, data map[string]interface{}) {
+	defer func() {
+		if r := recover(); r != nil {
+			if err, ok := r.(error); ok {
+				log.WithError(err).Error("panic")
+			} else {
+				log.Error("panic: ", r)
+			}
+			player.SendError(name, 500, "internal server error")
 		}
-		log.Debug("recv@", player.conn.RemoteAddr(), ": ", string(buf))
-		handler(player, message.Data)
+	}()
+	handler := handlers[name]
+	if handler == nil {
+		log.Warn("can not find handler: ", name)
+		player.SendError(name, 404, "404 not found")
+		return
+	}
+	if err := handler(player, name, data); err != nil {
+		log.WithError(err).Error("handle failed: ", name)
+		return
 	}
 }
 
@@ -66,5 +90,16 @@ func (player *Player) Send(message *Message) {
 		log.WithError(err).Error("write failed")
 		return
 	}
-	log.Debug("send@", player.conn.RemoteAddr(), ": ", string(buf))
+	log.WithField("addr", player.conn.RemoteAddr().String()).Debug("send: ", string(buf))
+}
+
+func (player *Player) SendError(reply string, code int, msg string) {
+	player.Send(&Message{
+		Name:  "error_sc",
+		Reply: reply,
+		Data: map[string]interface{}{
+			"code": code,
+			"msg":  msg,
+		},
+	})
 }
