@@ -60,7 +60,7 @@
 | token | str | 识别码                               |
 | name  | str | 用户名                               |
 | rid   | str | 房间号                               |
-| type  | int | 房间类别，1：bingo标准赛，2：bingo BP赛，3：大富翁 |
+| type  | int | 房间类别，1：bingo标准赛，2：bingo BP赛，3：大富翁。（进入房间不需要填这个字段） |
 
 **进入房间返回: join_room_sc**
 
