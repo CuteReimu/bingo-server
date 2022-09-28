@@ -2,20 +2,13 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/dgraph-io/badger/v3"
 	"github.com/gorilla/websocket"
+	"github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 	"sync"
 	"time"
 )
-
-type Player struct {
-	conn       *websocket.Conn
-	name       string
-	token      string // token唯一确定一个角色
-	heartTimer *time.Timer
-	room       *Room
-}
-
-var playerCache = new(sync.Map)
 
 type Message struct {
 	Name  string                 `json:"name"`
@@ -23,18 +16,21 @@ type Message struct {
 	Data  map[string]interface{} `json:"data"`
 }
 
-func (player *Player) OnConnect(conn *websocket.Conn) {
-	player.conn = conn
-	closeFunc := func() { _ = player.conn.Close() }
-	player.heartTimer = time.AfterFunc(time.Minute, closeFunc)
-	defer func() {
-		_ = player.conn.Close()
-		if len(player.token) > 0 {
-			playerCache.Delete(player.token)
-		}
-	}()
+type PlayerConn struct {
+	player     string
+	conn       *websocket.Conn
+	heartTimer *time.Timer
+}
+
+var playerConnCache sync.Map
+
+func (playerConn *PlayerConn) OnConnect(conn *websocket.Conn) {
+	playerConn.conn = conn
+	closeFunc := func() { _ = playerConn.conn.Close() }
+	playerConn.heartTimer = time.AfterFunc(time.Minute, closeFunc)
+	defer playerConn.OnDisconnect()
 	for {
-		mt, buf, err := player.conn.ReadMessage()
+		mt, buf, err := playerConn.conn.ReadMessage()
 		if err != nil {
 			log.WithError(err).Error("read failed")
 			break
@@ -43,7 +39,7 @@ func (player *Player) OnConnect(conn *websocket.Conn) {
 			log.Warn("unsupported message type: ", mt)
 			continue
 		}
-		log.WithField("addr", player.conn.RemoteAddr().String()).Debug("recv: ", string(buf))
+		log.WithField("addr", playerConn.conn.RemoteAddr().String()).Debug("recv: ", string(buf))
 		var message *Message
 		if err = json.Unmarshal(buf, &message); err != nil {
 			log.WithError(err).Error("unmarshal json failed")
@@ -53,11 +49,11 @@ func (player *Player) OnConnect(conn *websocket.Conn) {
 			log.Error("no proto name")
 			continue
 		}
-		player.Handle(message.Name, message.Data)
+		playerConn.Handle(message.Name, message.Data)
 	}
 }
 
-func (player *Player) Handle(name string, data map[string]interface{}) {
+func (playerConn *PlayerConn) Handle(name string, data map[string]interface{}) {
 	defer func() {
 		if r := recover(); r != nil {
 			if err, ok := r.(error); ok {
@@ -65,36 +61,42 @@ func (player *Player) Handle(name string, data map[string]interface{}) {
 			} else {
 				log.Error("panic: ", r)
 			}
-			player.SendError(name, 500, "internal server error")
+			playerConn.SendError(name, 500, "internal server error")
 		}
 	}()
 	handler := handlers[name]
 	if handler == nil {
 		log.Warn("can not find handler: ", name)
-		player.SendError(name, 404, "404 not found")
+		playerConn.SendError(name, 404, "404 not found")
 		return
 	}
-	if err := handler(player, name, data); err != nil {
-		log.WithError(err).Error("handle failed: ", name)
+	playerConn.heartTimer.Stop()
+	playerConn.heartTimer = time.AfterFunc(time.Minute, func() { _ = playerConn.conn.Close() })
+	if len(playerConn.player) == 0 && name != "login_cs" {
+		playerConn.SendError(name, -1, "You haven't login.")
 		return
+	}
+	if err := handler(playerConn, name, data); err != nil {
+		playerConn.SendError(name, 500, err.Error())
+		log.WithError(err).Error("handle failed: ", name)
 	}
 }
 
-func (player *Player) Send(message *Message) {
+func (playerConn *PlayerConn) Send(message Message) {
 	buf, err := json.Marshal(message)
 	if err != nil {
 		log.WithError(err).Error("marshal json failed")
 		return
 	}
-	if err := player.conn.WriteMessage(websocket.TextMessage, buf); err != nil {
+	if err := playerConn.conn.WriteMessage(websocket.TextMessage, buf); err != nil {
 		log.WithError(err).Error("write failed")
 		return
 	}
-	log.WithField("addr", player.conn.RemoteAddr().String()).Debug("send: ", string(buf))
+	log.WithField("addr", playerConn.conn.RemoteAddr().String()).Debug("send: ", string(buf))
 }
 
-func (player *Player) SendError(reply string, code int, msg string) {
-	player.Send(&Message{
+func (playerConn *PlayerConn) SendError(reply string, code int, msg string) {
+	playerConn.Send(Message{
 		Name:  "error_sc",
 		Reply: reply,
 		Data: map[string]interface{}{
@@ -102,4 +104,94 @@ func (player *Player) SendError(reply string, code int, msg string) {
 			"msg":  msg,
 		},
 	})
+}
+
+func (playerConn *PlayerConn) OnDisconnect() {
+	playerConn.heartTimer.Stop()
+	_ = playerConn.conn.Close()
+	if len(playerConn.player) == 0 {
+		return
+	}
+	err := db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.player)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return nil
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.GetStarted() {
+			return nil
+		}
+		for i := range room.Players {
+			if room.Players[i] == player.Token {
+				room.Players[i] = ""
+			}
+		}
+		player.RoomId = ""
+		if err = SetPlayer(txn, player); err != nil {
+			return err
+		}
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		log.WithError(err).Error("on disconnect error")
+	}
+	playerConnCache.Delete(playerConn.player)
+}
+
+func isAlphaNum(s string) bool {
+	for _, c := range []byte(s) {
+		if (c < '0' || c > '9') && (c < 'A' || c > 'Z') && (c < 'a' || c > 'z') {
+			return false
+		}
+	}
+	return true
+}
+
+func GetPlayer(txn *badger.Txn, token string) (*Player, error) {
+	key := append([]byte("player: "), []byte(token)...)
+	item, err := txn.Get(key)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	var player Player
+	err = item.Value(func(val []byte) error {
+		return proto.Unmarshal(val, &player)
+	})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return &player, nil
+}
+
+func GetPlayerOrNew(txn *badger.Txn, token string) (*Player, error) {
+	key := append([]byte("player: "), []byte(token)...)
+	item, err := txn.Get(key)
+	if err == badger.ErrKeyNotFound {
+		return new(Player), nil
+	} else if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	var player Player
+	err = item.Value(func(val []byte) error {
+		return proto.Unmarshal(val, &player)
+	})
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return &player, nil
+}
+
+func SetPlayer(txn *badger.Txn, player *Player) error {
+	key := append([]byte("player: "), []byte(player.Token)...)
+	val, err := proto.Marshal(player)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return errors.WithStack(txn.Set(key, val))
 }

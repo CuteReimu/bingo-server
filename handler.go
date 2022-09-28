@@ -1,21 +1,19 @@
 package main
 
 import (
+	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
 	"time"
 )
 
-var handlers = map[string]func(player *Player, protoName string, result map[string]interface{}) error{
+var handlers = map[string]func(player *PlayerConn, protoName string, result map[string]interface{}) error{
+	"login_cs":       handleLogin,
 	"heart_cs":       handleHeart,
 	"create_room_cs": handleCreateRoom,
 }
 
-func handleCreateRoom(player *Player, protoName string, data map[string]interface{}) error {
-	token, err := cast.ToStringE(data["token"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
 	name, err := cast.ToStringE(data["name"])
 	if err != nil {
 		return errors.WithStack(err)
@@ -24,54 +22,94 @@ func handleCreateRoom(player *Player, protoName string, data map[string]interfac
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	roomType, err := cast.ToIntE(data["type"])
+	roomType, err := cast.ToInt32E(data["type"])
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	room := GetRoom(rid, roomType, true)
-	if room == nil {
-		return errors.New("create room failed")
-	}
-	if _, loaded := playerCache.LoadOrStore(player.token, player); loaded {
-		player.SendError(protoName, 1, "already online")
-		return nil
-	}
-	player.name = name
-	player.token = token
-	player.room = room
-	ret := CallRoom(room, func() map[string]interface{} {
-		defer room.Lock()()
-		if room.host.token != player.token {
-			return nil
+	var roomInfo map[string]interface{}
+	err = db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.player)
+		if err != nil {
+			return err
 		}
-		ret := make(map[string]interface{})
-		room.host = player
-		ret["rid"] = room.roomId
-		ret["type"] = room.roomType
-		ret["host"] = room.host
-		ret["names"] = room.GetPlayerNames()
-		return ret
+		if len(player.RoomId) != 0 {
+			return errors.New("already in room")
+		}
+		key := append([]byte("room: "), []byte(rid)...)
+		_, err = txn.Get(key)
+		if err == nil {
+			return errors.New("room already exists")
+		} else if err != badger.ErrKeyNotFound {
+			return errors.WithStack(err)
+		}
+		var room = Room{
+			RoomId:   rid,
+			RoomType: roomType,
+			Players:  make([]string, 2),
+		}
+		player.RoomId = rid
+		player.Name = name
+		if err = SetPlayer(txn, player); err != nil {
+			return err
+		}
+		roomInfo, err = PackRoomInfo(txn, &room)
+		if err != nil {
+			return err
+		}
+		return SetRoom(txn, &room)
 	})
-	if ret == nil {
-		player.SendError(protoName, 2, "room already exists")
-		return nil
+	if err != nil {
+		return err
 	}
-	ret["name"] = name
-	player.Send(&Message{
-		Name:  "create_room_sc",
+	roomInfo["name"] = name
+	playerConn.Send(Message{
+		Name:  "join_room_sc",
 		Reply: protoName,
-		Data:  ret,
+		Data:  nil,
 	})
 	return nil
 }
 
-func handleHeart(player *Player, protoName string, _ map[string]interface{}) error {
-	if player.heartTimer != nil {
-		player.heartTimer.Stop()
-	}
-	player.heartTimer = time.AfterFunc(time.Minute, func() { _ = player.conn.Close() })
-	player.Send(&Message{
+func handleHeart(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+	playerConn.Send(Message{
 		Name:  "heart_sc",
+		Reply: protoName,
+		Data: map[string]interface{}{
+			"time": time.Now().UnixMilli(),
+		},
+	})
+	return nil
+}
+
+func handleLogin(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+	token, ok := data["token"]
+	if !ok {
+		playerConn.SendError(protoName, 400, "no token")
+		return nil
+	}
+	tokenStr, _ := token.(string)
+	if len(tokenStr) == 0 || !isAlphaNum(tokenStr) {
+		playerConn.SendError(protoName, 400, "invalid token")
+		return nil
+	}
+	err := db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayerOrNew(txn, tokenStr)
+		if err != nil {
+			return err
+		}
+		player.Token = tokenStr
+		_, loaded := playerConnCache.LoadOrStore(tokenStr, playerConn)
+		if loaded {
+			return errors.New("already online")
+		}
+		playerConn.player = tokenStr
+		return SetPlayer(txn, player)
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.Send(Message{
+		Name:  "login_sc",
 		Reply: protoName,
 		Data: map[string]interface{}{
 			"time": time.Now().UnixMilli(),

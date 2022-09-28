@@ -1,0 +1,16 @@
+syntax = "proto3";
+option go_package = "./;main";
+
+message player {
+  string token = 1;
+  string name = 2;
+  string room_id = 3;
+}
+
+message room {
+  string room_id = 1;
+  int32 room_type = 2;
+  string host = 3;
+  repeated string players = 4;
+  bool started = 5;
+}
