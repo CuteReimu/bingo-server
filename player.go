@@ -132,6 +132,9 @@ func (playerConn *PlayerConn) OnDisconnect() {
 				room.Players[i] = ""
 			}
 		}
+		if room.Host == player.Token {
+			room.Host = ""
+		}
 		player.RoomId = ""
 		if err = SetPlayer(txn, player); err != nil {
 			return err
@@ -156,7 +159,9 @@ func isAlphaNum(s string) bool {
 func GetPlayer(txn *badger.Txn, token string) (*Player, error) {
 	key := append([]byte("player: "), []byte(token)...)
 	item, err := txn.Get(key)
-	if err != nil {
+	if err == badger.ErrKeyNotFound {
+		return nil, errors.Wrap(err, "cannot find this player")
+	} else if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	var player Player

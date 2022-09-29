@@ -9,7 +9,9 @@ import (
 func GetRoom(txn *badger.Txn, roomId string) (*Room, error) {
 	key := append([]byte("room: "), []byte(roomId)...)
 	item, err := txn.Get(key)
-	if err != nil {
+	if err == badger.ErrKeyNotFound {
+		return nil, errors.Wrap(err, "cannot find this room")
+	} else if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	var room Room
@@ -48,4 +50,8 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, error) {
 		"host":  room.Host,
 		"names": players,
 	}, nil
+}
+
+func BroadcastJoinRoom(room *Room) {
+
 }

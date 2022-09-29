@@ -11,6 +11,72 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"login_cs":       handleLogin,
 	"heart_cs":       handleHeart,
 	"create_room_cs": handleCreateRoom,
+	"join_room_cs":   handleJoinRoom,
+}
+
+func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+	name, err := cast.ToStringE(data["name"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	rid, err := cast.ToStringE(data["rid"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	var roomInfo map[string]interface{}
+	err = db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.player)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) != 0 {
+			return errors.New("已经在房间里了")
+		}
+		room, err := GetRoom(txn, rid)
+		if err != nil {
+			return err
+		}
+		player.RoomId = rid
+		player.Name = name
+		if err = SetPlayer(txn, player); err != nil {
+			return err
+		}
+		var ok bool
+		for i := range room.Players {
+			if len(room.Players[i]) == 0 {
+				ok = true
+				room.Players[i] = player.Token
+				break
+			}
+		}
+		if !ok {
+			return errors.New("房间满了")
+		}
+		roomInfo, err = PackRoomInfo(txn, room)
+		if err != nil {
+			return err
+		}
+		var count int
+		for _, name2 := range roomInfo["names"].([]string) {
+			if name2 == name {
+				count++
+			}
+		}
+		if count >= 2 {
+			return errors.New("该名字已被使用")
+		}
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	roomInfo["name"] = name
+	playerConn.Send(Message{
+		Name:  "join_room_sc",
+		Reply: protoName,
+		Data:  roomInfo,
+	})
+	return nil
 }
 
 func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
@@ -45,6 +111,7 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 		var room = Room{
 			RoomId:   rid,
 			RoomType: roomType,
+			Host:     name,
 			Players:  make([]string, 2),
 		}
 		player.RoomId = rid
@@ -65,7 +132,7 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 	playerConn.Send(Message{
 		Name:  "join_room_sc",
 		Reply: protoName,
-		Data:  nil,
+		Data:  roomInfo,
 	})
 	return nil
 }

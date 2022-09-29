@@ -28,6 +28,7 @@ func init() {
 		logrus.InfoLevel:  writer,
 		logrus.DebugLevel: writer,
 	}, &logrus.TextFormatter{DisableQuote: true}))
+	logrus.SetFormatter(&logrus.TextFormatter{DisableQuote: true})
 	logrus.SetLevel(logrus.DebugLevel)
 }
 
