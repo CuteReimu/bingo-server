@@ -12,6 +12,58 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"heart_cs":       handleHeart,
 	"create_room_cs": handleCreateRoom,
 	"join_room_cs":   handleJoinRoom,
+	"leave_room_cs":  handleLeaveRoom,
+}
+
+func handleLeaveRoom(playerConn *PlayerConn, _ string, _ map[string]interface{}) error {
+	return db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.player)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("并不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.GetStarted() {
+			return errors.New("比赛已经开始了，不能退出")
+		}
+		player.RoomId = ""
+		player.Name = ""
+		if room.Host == player.Token {
+			for i := range room.Players {
+				if room.Players[i] != room.Host {
+					p, err := GetPlayer(txn, room.Players[i])
+					if err != nil {
+						return err
+					}
+					p.RoomId = ""
+					p.Name = ""
+					err = SetPlayer(txn, p)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			if err = DelRoom(txn, player.RoomId); err != nil {
+				return err
+			}
+		} else {
+			for i := range room.Players {
+				if room.Players[i] == player.Token {
+					room.Players[i] = ""
+				}
+			}
+			err = SetRoom(txn, room)
+			if err != nil {
+				return err
+			}
+		}
+		return SetPlayer(txn, player)
+	})
 }
 
 func handleJoinRoom(playerConn *PlayerConn, _ string, data map[string]interface{}) error {

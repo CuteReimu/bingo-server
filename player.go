@@ -22,7 +22,7 @@ type PlayerConn struct {
 	conn       *websocket.Conn
 	heartTimer *time.Timer
 	syncTimer  *time.Ticker
-	syncHash   uint16
+	syncHash   uint32
 }
 
 var playerConnCache sync.Map
@@ -164,19 +164,36 @@ func (playerConn *PlayerConn) OnDisconnect() {
 		if room.GetStarted() {
 			return nil
 		}
-		for i := range room.Players {
-			if room.Players[i] == player.Token {
-				room.Players[i] = ""
+		if room.Host == player.Token {
+			for i := range room.Players {
+				if room.Players[i] != room.Host {
+					p, err := GetPlayer(txn, room.Players[i])
+					if err != nil {
+						return err
+					}
+					p.RoomId = ""
+					p.Name = ""
+					err = SetPlayer(txn, p)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			if err = DelRoom(txn, player.RoomId); err != nil {
+				return err
+			}
+		} else {
+			for i := range room.Players {
+				if room.Players[i] == player.Token {
+					room.Players[i] = ""
+				}
+			}
+			err = SetRoom(txn, room)
+			if err != nil {
+				return err
 			}
 		}
-		if room.Host == player.Token {
-			room.Host = ""
-		}
-		player.RoomId = ""
-		if err = SetPlayer(txn, player); err != nil {
-			return err
-		}
-		return SetRoom(txn, room)
+		return DelPlayer(txn, player.Token)
 	})
 	if err != nil {
 		log.WithError(err).Error("on disconnect error")
@@ -193,9 +210,9 @@ func isAlphaNum(s string) bool {
 	return true
 }
 
-func stringHash(s []byte) (hash uint16) {
+func stringHash(s []byte) (hash uint32) {
 	for _, c := range s {
-		ch := uint16(c)
+		ch := uint32(c)
 		hash = hash + ((hash) << 5) + ch + (ch << 7)
 	}
 	return
@@ -282,4 +299,9 @@ func SetPlayer(txn *badger.Txn, player *Player) error {
 		return errors.WithStack(err)
 	}
 	return errors.WithStack(txn.Set(key, val))
+}
+
+func DelPlayer(txn *badger.Txn, token string) error {
+	key := append([]byte("player: "), []byte(token)...)
+	return errors.WithStack(txn.Delete(key))
 }

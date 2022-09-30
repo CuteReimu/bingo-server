@@ -33,6 +33,11 @@ func SetRoom(txn *badger.Txn, room *Room) error {
 	return errors.WithStack(txn.Set(key, val))
 }
 
+func DelRoom(txn *badger.Txn, roomId string) error {
+	key := append([]byte("room: "), []byte(roomId)...)
+	return errors.WithStack(txn.Delete(key))
+}
+
 func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, error) {
 	players := make([]string, len(room.Players))
 	for i := range players {
