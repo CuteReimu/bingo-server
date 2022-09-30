@@ -13,13 +13,16 @@ import (
 type Message struct {
 	Name  string                 `json:"name"`
 	Reply string                 `json:"reply,omitempty"`
-	Data  map[string]interface{} `json:"data"`
+	Data  map[string]interface{} `json:"data,omitempty"`
 }
 
 type PlayerConn struct {
+	mu         sync.Mutex
 	player     string
 	conn       *websocket.Conn
 	heartTimer *time.Timer
+	syncTimer  *time.Ticker
+	syncHash   uint16
 }
 
 var playerConnCache sync.Map
@@ -79,15 +82,39 @@ func (playerConn *PlayerConn) Handle(name string, data map[string]interface{}) {
 	if err := handler(playerConn, name, data); err != nil {
 		playerConn.SendError(name, 500, err.Error())
 		log.WithError(err).Error("handle failed: ", name)
+	} else if name != "heart_cs" {
+		playerConn.SendSuccess(name)
 	}
 }
 
 func (playerConn *PlayerConn) Send(message Message) {
+	playerConn.mu.Lock()
+	defer playerConn.mu.Unlock()
 	buf, err := json.Marshal(message)
 	if err != nil {
 		log.WithError(err).Error("marshal json failed")
 		return
 	}
+	if err := playerConn.conn.WriteMessage(websocket.TextMessage, buf); err != nil {
+		log.WithError(err).Error("write failed")
+		return
+	}
+	log.WithField("addr", playerConn.conn.RemoteAddr().String()).Debug("send: ", string(buf))
+}
+
+func (playerConn *PlayerConn) SendSync(message Message) {
+	playerConn.mu.Lock()
+	defer playerConn.mu.Unlock()
+	buf, err := json.Marshal(message)
+	if err != nil {
+		log.WithError(err).Error("marshal json failed")
+		return
+	}
+	hash := stringHash(buf)
+	if playerConn.syncHash == hash {
+		return
+	}
+	playerConn.syncHash = hash
 	if err := playerConn.conn.WriteMessage(websocket.TextMessage, buf); err != nil {
 		log.WithError(err).Error("write failed")
 		return
@@ -106,9 +133,19 @@ func (playerConn *PlayerConn) SendError(reply string, code int, msg string) {
 	})
 }
 
+func (playerConn *PlayerConn) SendSuccess(reply string) {
+	playerConn.Send(Message{
+		Name:  "success_sc",
+		Reply: reply,
+	})
+}
+
 func (playerConn *PlayerConn) OnDisconnect() {
 	playerConn.heartTimer.Stop()
 	_ = playerConn.conn.Close()
+	if playerConn.syncTimer != nil {
+		playerConn.syncTimer.Stop()
+	}
 	if len(playerConn.player) == 0 {
 		return
 	}
@@ -154,6 +191,52 @@ func isAlphaNum(s string) bool {
 		}
 	}
 	return true
+}
+
+func stringHash(s []byte) (hash uint16) {
+	for _, c := range s {
+		ch := uint16(c)
+		hash = hash + ((hash) << 5) + ch + (ch << 7)
+	}
+	return
+}
+
+func (playerConn *PlayerConn) StartNotifyPlayerInfo() {
+	playerConn.syncTimer = time.NewTicker(time.Second)
+	go func() {
+		for {
+			var message Message
+			err := db.View(func(txn *badger.Txn) error {
+				player, err := GetPlayer(txn, playerConn.player)
+				if err != nil {
+					return err
+				}
+				if len(player.RoomId) == 0 {
+					message.Name = "global_info_sc"
+					return nil
+				}
+				room, err := GetRoom(txn, player.RoomId)
+				if err != nil {
+					return err
+				}
+				message.Data, err = PackRoomInfo(txn, room)
+				if err != nil {
+					return err
+				}
+				message.Data["name"] = player.Name
+				message.Name = "room_info_sc"
+				return nil
+			})
+			if err != nil {
+				log.WithError(err).Error("db error")
+			}
+			playerConn.SendSync(message)
+			_, ok := <-playerConn.syncTimer.C
+			if !ok {
+				break
+			}
+		}
+	}()
 }
 
 func GetPlayer(txn *badger.Txn, token string) (*Player, error) {

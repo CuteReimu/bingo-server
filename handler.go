@@ -14,7 +14,7 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"join_room_cs":   handleJoinRoom,
 }
 
-func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+func handleJoinRoom(playerConn *PlayerConn, _ string, data map[string]interface{}) error {
 	name, err := cast.ToStringE(data["name"])
 	if err != nil {
 		return errors.WithStack(err)
@@ -23,8 +23,7 @@ func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]in
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	var roomInfo map[string]interface{}
-	err = db.Update(func(txn *badger.Txn) error {
+	return db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.player)
 		if err != nil {
 			return err
@@ -43,43 +42,29 @@ func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]in
 		}
 		var ok bool
 		for i := range room.Players {
-			if len(room.Players[i]) == 0 {
+			if ok {
+				if len(room.Players[i]) != 0 {
+					player2, err := GetPlayer(txn, room.Players[i])
+					if err != nil {
+						return err
+					}
+					if player2.Name == name {
+						return errors.New("名字重复")
+					}
+				}
+			} else if len(room.Players[i]) == 0 {
 				ok = true
 				room.Players[i] = player.Token
-				break
 			}
 		}
 		if !ok {
 			return errors.New("房间满了")
 		}
-		roomInfo, err = PackRoomInfo(txn, room)
-		if err != nil {
-			return err
-		}
-		var count int
-		for _, name2 := range roomInfo["names"].([]string) {
-			if name2 == name {
-				count++
-			}
-		}
-		if count >= 2 {
-			return errors.New("该名字已被使用")
-		}
 		return SetRoom(txn, room)
 	})
-	if err != nil {
-		return err
-	}
-	roomInfo["name"] = name
-	playerConn.Send(Message{
-		Name:  "join_room_sc",
-		Reply: protoName,
-		Data:  roomInfo,
-	})
-	return nil
 }
 
-func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+func handleCreateRoom(playerConn *PlayerConn, _ string, data map[string]interface{}) error {
 	name, err := cast.ToStringE(data["name"])
 	if err != nil {
 		return errors.WithStack(err)
@@ -92,8 +77,7 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	var roomInfo map[string]interface{}
-	err = db.Update(func(txn *badger.Txn) error {
+	return db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.player)
 		if err != nil {
 			return err
@@ -119,22 +103,11 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 		if err = SetPlayer(txn, player); err != nil {
 			return err
 		}
-		roomInfo, err = PackRoomInfo(txn, &room)
 		if err != nil {
 			return err
 		}
 		return SetRoom(txn, &room)
 	})
-	if err != nil {
-		return err
-	}
-	roomInfo["name"] = name
-	playerConn.Send(Message{
-		Name:  "join_room_sc",
-		Reply: protoName,
-		Data:  roomInfo,
-	})
-	return nil
 }
 
 func handleHeart(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
@@ -169,18 +142,12 @@ func handleLogin(playerConn *PlayerConn, protoName string, data map[string]inter
 		if loaded {
 			return errors.New("already online")
 		}
-		playerConn.player = tokenStr
 		return SetPlayer(txn, player)
 	})
 	if err != nil {
 		return err
 	}
-	playerConn.Send(Message{
-		Name:  "login_sc",
-		Reply: protoName,
-		Data: map[string]interface{}{
-			"time": time.Now().UnixMilli(),
-		},
-	})
+	playerConn.player = tokenStr
+	playerConn.StartNotifyPlayerInfo()
 	return nil
 }

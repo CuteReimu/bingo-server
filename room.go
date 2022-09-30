@@ -51,7 +51,3 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, error) {
 		"names": players,
 	}, nil
 }
-
-func BroadcastJoinRoom(room *Room) {
-
-}
