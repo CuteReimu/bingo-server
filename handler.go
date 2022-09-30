@@ -93,7 +93,7 @@ func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 		player.Name = ""
 		if room.Host == player.Token {
 			for i := range room.Players {
-				if room.Players[i] != room.Host {
+				if len(room.Players[i]) != 0 && room.Players[i] != room.Host {
 					p, err := GetPlayer(txn, room.Players[i])
 					if err != nil {
 						return err
@@ -106,7 +106,7 @@ func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 					}
 				}
 			}
-			if err = DelRoom(txn, player.RoomId); err != nil {
+			if err = DelRoom(txn, room.RoomId); err != nil {
 				return err
 			}
 		} else {
@@ -227,7 +227,7 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 		var room = Room{
 			RoomId:   rid,
 			RoomType: roomType,
-			Host:     name,
+			Host:     playerConn.player,
 			Players:  make([]string, 2),
 		}
 		player.RoomId = rid

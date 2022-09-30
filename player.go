@@ -74,7 +74,10 @@ func (playerConn *PlayerConn) Handle(name string, data map[string]interface{}) {
 		return
 	}
 	playerConn.heartTimer.Stop()
-	playerConn.heartTimer = time.AfterFunc(time.Minute, func() { _ = playerConn.conn.Close() })
+	playerConn.heartTimer = time.AfterFunc(time.Minute, func() {
+		log.WithField("addr", playerConn.conn.RemoteAddr().String()).Warn("长时间没有心跳，断开连接")
+		_ = playerConn.conn.Close()
+	})
 	if len(playerConn.player) == 0 && name != "login_cs" {
 		playerConn.SendError(name, -1, "You haven't login.")
 		return
@@ -164,7 +167,7 @@ func (playerConn *PlayerConn) OnDisconnect() {
 		}
 		if room.Host == player.Token {
 			for i := range room.Players {
-				if room.Players[i] != room.Host {
+				if len(room.Players[i]) != 0 && room.Players[i] != room.Host {
 					p, err := GetPlayer(txn, room.Players[i])
 					if err != nil {
 						return err
@@ -177,7 +180,7 @@ func (playerConn *PlayerConn) OnDisconnect() {
 					}
 				}
 			}
-			if err = DelRoom(txn, player.RoomId); err != nil {
+			if err = DelRoom(txn, room.RoomId); err != nil {
 				return err
 			}
 		} else {
