@@ -82,8 +82,6 @@ func (playerConn *PlayerConn) Handle(name string, data map[string]interface{}) {
 	if err := handler(playerConn, name, data); err != nil {
 		playerConn.SendError(name, 500, err.Error())
 		log.WithError(err).Error("handle failed: ", name)
-	} else if name != "heart_cs" {
-		playerConn.SendSuccess(name)
 	}
 }
 
@@ -218,42 +216,58 @@ func stringHash(s []byte) (hash uint32) {
 	return
 }
 
+func (playerConn *PlayerConn) buildPlayerInfo() (Message, error) {
+	var message Message
+	err := db.View(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.player)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			message.Name = "global_info_sc"
+			return nil
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		message.Data, err = PackRoomInfo(txn, room)
+		if err != nil {
+			return err
+		}
+		message.Data["name"] = player.Name
+		message.Name = "room_info_sc"
+		return nil
+	})
+	return message, err
+}
+
 func (playerConn *PlayerConn) StartNotifyPlayerInfo() {
 	playerConn.syncTimer = time.NewTicker(time.Second)
 	go func() {
 		for {
-			var message Message
-			err := db.View(func(txn *badger.Txn) error {
-				player, err := GetPlayer(txn, playerConn.player)
-				if err != nil {
-					return err
-				}
-				if len(player.RoomId) == 0 {
-					message.Name = "global_info_sc"
-					return nil
-				}
-				room, err := GetRoom(txn, player.RoomId)
-				if err != nil {
-					return err
-				}
-				message.Data, err = PackRoomInfo(txn, room)
-				if err != nil {
-					return err
-				}
-				message.Data["name"] = player.Name
-				message.Name = "room_info_sc"
-				return nil
-			})
-			if err != nil {
-				log.WithError(err).Error("db error")
-			}
-			playerConn.SendSync(message)
 			_, ok := <-playerConn.syncTimer.C
 			if !ok {
 				break
 			}
+			message, err := playerConn.buildPlayerInfo()
+			if err != nil {
+				log.WithError(err).Error("db error")
+			} else {
+				playerConn.SendSync(message)
+			}
 		}
 	}()
+}
+
+func (playerConn *PlayerConn) NotifyPlayerInfo(reply string) {
+	message, err := playerConn.buildPlayerInfo()
+	if err != nil {
+		log.WithError(err).Error("db error")
+	} else {
+		message.Reply = reply
+		playerConn.Send(message)
+	}
 }
 
 func GetPlayer(txn *badger.Txn, token string) (*Player, error) {

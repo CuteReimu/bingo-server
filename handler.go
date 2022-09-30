@@ -15,8 +15,8 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"leave_room_cs":  handleLeaveRoom,
 }
 
-func handleLeaveRoom(playerConn *PlayerConn, _ string, _ map[string]interface{}) error {
-	return db.Update(func(txn *badger.Txn) error {
+func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.player)
 		if err != nil {
 			return err
@@ -64,9 +64,14 @@ func handleLeaveRoom(playerConn *PlayerConn, _ string, _ map[string]interface{})
 		}
 		return SetPlayer(txn, player)
 	})
+	if err != nil {
+		return err
+	}
+	playerConn.SendSuccess(protoName)
+	return nil
 }
 
-func handleJoinRoom(playerConn *PlayerConn, _ string, data map[string]interface{}) error {
+func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
 	name, err := cast.ToStringE(data["name"])
 	if err != nil {
 		return errors.WithStack(err)
@@ -75,7 +80,7 @@ func handleJoinRoom(playerConn *PlayerConn, _ string, data map[string]interface{
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return db.Update(func(txn *badger.Txn) error {
+	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.player)
 		if err != nil {
 			return err
@@ -114,9 +119,14 @@ func handleJoinRoom(playerConn *PlayerConn, _ string, data map[string]interface{
 		}
 		return SetRoom(txn, room)
 	})
+	if err != nil {
+		return err
+	}
+	playerConn.NotifyPlayerInfo(protoName)
+	return nil
 }
 
-func handleCreateRoom(playerConn *PlayerConn, _ string, data map[string]interface{}) error {
+func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
 	name, err := cast.ToStringE(data["name"])
 	if err != nil {
 		return errors.WithStack(err)
@@ -129,7 +139,7 @@ func handleCreateRoom(playerConn *PlayerConn, _ string, data map[string]interfac
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return db.Update(func(txn *badger.Txn) error {
+	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.player)
 		if err != nil {
 			return err
@@ -160,6 +170,11 @@ func handleCreateRoom(playerConn *PlayerConn, _ string, data map[string]interfac
 		}
 		return SetRoom(txn, &room)
 	})
+	if err != nil {
+		return err
+	}
+	playerConn.NotifyPlayerInfo(protoName)
+	return nil
 }
 
 func handleHeart(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
@@ -200,6 +215,7 @@ func handleLogin(playerConn *PlayerConn, protoName string, data map[string]inter
 		return err
 	}
 	playerConn.player = tokenStr
+	playerConn.NotifyPlayerInfo(protoName)
 	playerConn.StartNotifyPlayerInfo()
 	return nil
 }
