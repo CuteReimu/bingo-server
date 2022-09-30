@@ -8,11 +8,69 @@ import (
 )
 
 var handlers = map[string]func(player *PlayerConn, protoName string, result map[string]interface{}) error{
-	"login_cs":       handleLogin,
-	"heart_cs":       handleHeart,
-	"create_room_cs": handleCreateRoom,
-	"join_room_cs":   handleJoinRoom,
-	"leave_room_cs":  handleLeaveRoom,
+	"login_cs":            handleLogin,
+	"heart_cs":            handleHeart,
+	"create_room_cs":      handleCreateRoom,
+	"join_room_cs":        handleJoinRoom,
+	"leave_room_cs":       handleLeaveRoom,
+	"update_room_type_cs": handleUpdateRoomType,
+	"update_name_cs":      handleUpdateName,
+}
+
+func handleUpdateName(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+	name, err := cast.ToStringE(data["name"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if len(name) == 0 {
+		return errors.New("名字为空")
+	}
+	err = db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.player)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		player.Name = name
+		return SetPlayer(txn, player)
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.SendSuccess(protoName)
+	return nil
+}
+
+func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+	roomType, err := cast.ToInt32E(data["type"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	err = db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.player)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Host != playerConn.player {
+			return errors.New("不是房主")
+		}
+		room.RoomType = roomType
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.SendSuccess(protoName)
+	return nil
 }
 
 func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
@@ -76,9 +134,15 @@ func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]in
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	if len(name) == 0 {
+		return errors.New("名字为空")
+	}
 	rid, err := cast.ToStringE(data["rid"])
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	if len(rid) == 0 {
+		return errors.New("房间ID为空")
 	}
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.player)
@@ -131,9 +195,15 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	if len(name) == 0 {
+		return errors.New("名字为空")
+	}
 	rid, err := cast.ToStringE(data["rid"])
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	if len(rid) == 0 {
+		return errors.New("房间ID为空")
 	}
 	roomType, err := cast.ToInt32E(data["type"])
 	if err != nil {

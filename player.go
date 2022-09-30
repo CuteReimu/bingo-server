@@ -42,7 +42,7 @@ func (playerConn *PlayerConn) OnConnect(conn *websocket.Conn) {
 			log.Warn("unsupported message type: ", mt)
 			continue
 		}
-		log.WithField("addr", playerConn.conn.RemoteAddr().String()).Debug("recv: ", string(buf))
+		log.WithField("addr", playerConn.conn.RemoteAddr().String()).WithField("len", len(buf)).Debug("recv: ", string(buf))
 		var message *Message
 		if err = json.Unmarshal(buf, &message); err != nil {
 			log.WithError(err).Error("unmarshal json failed")
@@ -97,7 +97,7 @@ func (playerConn *PlayerConn) Send(message Message) {
 		log.WithError(err).Error("write failed")
 		return
 	}
-	log.WithField("addr", playerConn.conn.RemoteAddr().String()).Debug("send: ", string(buf))
+	log.WithField("addr", playerConn.conn.RemoteAddr().String()).WithField("len", len(buf)).Debug("send: ", string(buf))
 }
 
 func (playerConn *PlayerConn) SendSync(message Message) {
