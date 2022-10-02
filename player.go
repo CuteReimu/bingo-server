@@ -1,84 +1,41 @@
 package main
 
 import (
-	"encoding/json"
+	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
+	"github.com/davyxu/cellnet"
 	"github.com/dgraph-io/badger/v3"
-	"github.com/gorilla/websocket"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
-	"sync"
 	"time"
 )
 
-type Message struct {
-	Name  string                 `json:"name"`
-	Reply string                 `json:"reply,omitempty"`
-	Data  map[string]interface{} `json:"data,omitempty"`
-}
-
 type PlayerConn struct {
-	mu         sync.Mutex
-	player     string
-	conn       *websocket.Conn
+	token string
+	cellnet.Session
 	heartTimer *time.Timer
-	syncTimer  *time.Ticker
-	syncHash   uint32
 }
 
-var playerConnCache sync.Map
+var tokenConnMap = make(map[string]*PlayerConn)
 
-func (playerConn *PlayerConn) OnConnect(conn *websocket.Conn) {
-	playerConn.conn = conn
-	closeFunc := func() { _ = playerConn.conn.Close() }
-	playerConn.heartTimer = time.AfterFunc(time.Minute, closeFunc)
-	defer playerConn.OnDisconnect()
-	for {
-		mt, buf, err := playerConn.conn.ReadMessage()
-		if err != nil {
-			log.WithError(err).Error("read failed")
-			break
-		}
-		if mt != websocket.TextMessage {
-			log.Warn("unsupported message type: ", mt)
-			continue
-		}
-		log.WithField("addr", playerConn.conn.RemoteAddr().String()).WithField("len", len(buf)).Debug("recv: ", string(buf))
-		var message *Message
-		if err = json.Unmarshal(buf, &message); err != nil {
-			log.WithError(err).Error("unmarshal json failed")
-			continue
-		}
-		if len(message.Name) == 0 {
-			log.Error("no proto name")
-			continue
-		}
-		playerConn.Handle(message.Name, message.Data)
+func (playerConn *PlayerConn) SetHeartTimer() {
+	if playerConn.heartTimer != nil {
+		playerConn.heartTimer.Stop()
 	}
+	playerConn.heartTimer = time.AfterFunc(time.Minute, func() {
+		log.WithField("conn_id", playerConn.ID()).Warn("长时间没有心跳，断开连接")
+		playerConn.Close()
+	})
 }
 
 func (playerConn *PlayerConn) Handle(name string, data map[string]interface{}) {
-	defer func() {
-		if r := recover(); r != nil {
-			if err, ok := r.(error); ok {
-				log.WithError(err).Error("panic")
-			} else {
-				log.Error("panic: ", r)
-			}
-			playerConn.SendError(name, 500, "internal server error")
-		}
-	}()
 	handler := handlers[name]
 	if handler == nil {
 		log.Warn("can not find handler: ", name)
 		playerConn.SendError(name, 404, "404 not found")
 		return
 	}
-	playerConn.heartTimer.Stop()
-	playerConn.heartTimer = time.AfterFunc(time.Minute, func() {
-		log.WithField("addr", playerConn.conn.RemoteAddr().String()).Warn("长时间没有心跳，断开连接")
-		_ = playerConn.conn.Close()
-	})
-	if len(playerConn.player) == 0 && name != "login_cs" {
+	playerConn.SetHeartTimer()
+	if len(playerConn.token) == 0 && name != "login_cs" {
 		playerConn.SendError(name, -1, "You haven't login.")
 		return
 	}
@@ -88,50 +45,10 @@ func (playerConn *PlayerConn) Handle(name string, data map[string]interface{}) {
 	}
 }
 
-func (playerConn *PlayerConn) Send(message Message) {
-	playerConn.mu.Lock()
-	defer playerConn.mu.Unlock()
-	buf, err := json.Marshal(message)
-	if err != nil {
-		log.WithError(err).Error("marshal json failed")
-		return
-	}
-	if err := playerConn.conn.WriteMessage(websocket.TextMessage, buf); err != nil {
-		log.WithError(err).Error("write failed")
-		return
-	}
-	log.WithField("addr", playerConn.conn.RemoteAddr().String()).WithField("len", len(buf)).Debug("send: ", string(buf))
-}
-
-func (playerConn *PlayerConn) SendSync(message Message) {
-	playerConn.mu.Lock()
-	defer playerConn.mu.Unlock()
-	buf, err := json.Marshal(message.Data)
-	if err != nil {
-		log.WithError(err).Error("marshal json failed")
-		return
-	}
-	hash := stringHash(buf)
-	if playerConn.syncHash == hash {
-		return
-	}
-	buf, err = json.Marshal(message)
-	if err != nil {
-		log.WithError(err).Error("marshal json failed")
-		return
-	}
-	playerConn.syncHash = hash
-	if err := playerConn.conn.WriteMessage(websocket.TextMessage, buf); err != nil {
-		log.WithError(err).Error("write failed")
-		return
-	}
-	log.WithField("addr", playerConn.conn.RemoteAddr().String()).Debug("send: ", string(buf))
-}
-
 func (playerConn *PlayerConn) SendError(reply string, code int, msg string) {
-	playerConn.Send(Message{
-		Name:  "error_sc",
-		Reply: reply,
+	playerConn.Send(&myws.Message{
+		MsgName: "error_sc",
+		Reply:   reply,
 		Data: map[string]interface{}{
 			"code": code,
 			"msg":  msg,
@@ -140,23 +57,23 @@ func (playerConn *PlayerConn) SendError(reply string, code int, msg string) {
 }
 
 func (playerConn *PlayerConn) SendSuccess(reply string) {
-	playerConn.Send(Message{
-		Name:  "success_sc",
-		Reply: reply,
+	playerConn.Send(&myws.Message{
+		MsgName: "success_sc",
+		Reply:   reply,
 	})
 }
 
 func (playerConn *PlayerConn) OnDisconnect() {
 	playerConn.heartTimer.Stop()
-	_ = playerConn.conn.Close()
-	if playerConn.syncTimer != nil {
-		playerConn.syncTimer.Stop()
+	if playerConn.heartTimer != nil {
+		playerConn.heartTimer.Stop()
+		playerConn.heartTimer = nil
 	}
-	if len(playerConn.player) == 0 {
+	if len(playerConn.token) == 0 {
 		return
 	}
 	err := db.Update(func(txn *badger.Txn) error {
-		player, err := GetPlayer(txn, playerConn.player)
+		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
 		}
@@ -206,7 +123,6 @@ func (playerConn *PlayerConn) OnDisconnect() {
 	if err != nil {
 		log.WithError(err).Error("on disconnect error")
 	}
-	playerConnCache.Delete(playerConn.player)
 }
 
 func isAlphaNum(s string) bool {
@@ -218,18 +134,11 @@ func isAlphaNum(s string) bool {
 	return true
 }
 
-func stringHash(s []byte) (hash uint32) {
-	for _, c := range s {
-		ch := uint32(c)
-		hash = hash + ((hash) << 5) + ch + (ch << 7)
-	}
-	return
-}
-
-func (playerConn *PlayerConn) buildPlayerInfo() (Message, error) {
-	var message = Message{Name: "room_info_sc"}
+func (playerConn *PlayerConn) buildPlayerInfo() (*myws.Message, []string, error) {
+	var message = &myws.Message{MsgName: "room_info_sc"}
+	var tokens []string
 	err := db.View(func(txn *badger.Txn) error {
-		player, err := GetPlayer(txn, playerConn.player)
+		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
 		}
@@ -243,49 +152,44 @@ func (playerConn *PlayerConn) buildPlayerInfo() (Message, error) {
 		} else if err != nil {
 			return err
 		}
-		message.Data, err = PackRoomInfo(txn, room)
+		message.Data, tokens, err = PackRoomInfo(txn, room)
 		if err != nil {
 			return err
 		}
 		message.Data["name"] = player.Name
 		return nil
 	})
-	return message, err
-}
-
-func (playerConn *PlayerConn) StartNotifyPlayerInfo() {
-	playerConn.syncTimer = time.NewTicker(time.Second)
-	go func() {
-		for {
-			_, ok := <-playerConn.syncTimer.C
-			if !ok {
-				break
-			}
-			message, err := playerConn.buildPlayerInfo()
-			if err != nil {
-				log.WithError(err).Error("db error")
-			} else {
-				playerConn.SendSync(message)
-			}
-		}
-	}()
+	if err != nil {
+		return nil, nil, err
+	}
+	return message, tokens, nil
 }
 
 func (playerConn *PlayerConn) NotifyPlayerInfo(reply string) {
-	message, err := playerConn.buildPlayerInfo()
+	message, tokens, err := playerConn.buildPlayerInfo()
 	if err != nil {
 		log.WithError(err).Error("db error")
 	} else {
-		message.Reply = reply
-		playerConn.SendSync(message)
+		for _, token := range tokens {
+			if token != playerConn.token {
+				if conn, ok := tokenConnMap[token]; ok {
+					conn.Send(message)
+				}
+			}
+		}
+		playerConn.Send(&myws.Message{
+			MsgName: message.MsgName,
+			Reply:   reply,
+			Data:    message.Data,
+		})
 	}
 }
 
 func GetPlayer(txn *badger.Txn, token string) (*Player, error) {
-	key := append([]byte("player: "), []byte(token)...)
+	key := append([]byte("token: "), []byte(token)...)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
-		return nil, errors.Wrap(err, "cannot find this player")
+		return nil, errors.Wrap(err, "cannot find this token")
 	} else if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -300,7 +204,7 @@ func GetPlayer(txn *badger.Txn, token string) (*Player, error) {
 }
 
 func GetPlayerOrNew(txn *badger.Txn, token string) (*Player, error) {
-	key := append([]byte("player: "), []byte(token)...)
+	key := append([]byte("token: "), []byte(token)...)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
 		return new(Player), nil
@@ -318,7 +222,7 @@ func GetPlayerOrNew(txn *badger.Txn, token string) (*Player, error) {
 }
 
 func SetPlayer(txn *badger.Txn, player *Player) error {
-	key := append([]byte("player: "), []byte(player.Token)...)
+	key := append([]byte("token: "), []byte(player.Token)...)
 	val, err := proto.Marshal(player)
 	if err != nil {
 		return errors.WithStack(err)
@@ -327,6 +231,6 @@ func SetPlayer(txn *badger.Txn, player *Player) error {
 }
 
 func DelPlayer(txn *badger.Txn, token string) error {
-	key := append([]byte("player: "), []byte(token)...)
+	key := append([]byte("token: "), []byte(token)...)
 	return errors.WithStack(txn.Delete(key))
 }

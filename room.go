@@ -39,13 +39,15 @@ func DelRoom(txn *badger.Txn, roomId string) error {
 	return errors.WithStack(txn.Delete(key))
 }
 
-func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, error) {
+func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, []string, error) {
+	var tokens []string
 	host, err := GetPlayer(txn, room.Host)
 	if err == badger.ErrKeyNotFound {
-		return nil, DelRoom(txn, room.RoomId)
+		return nil, nil, DelRoom(txn, room.RoomId)
 	} else if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	tokens = append(tokens, host.Token)
 	var updated bool
 	players := make([]string, len(room.Players))
 	for i := range players {
@@ -56,9 +58,19 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, error) {
 				updated = true
 				continue
 			} else if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			players[i] = player.Name
+			if func(s string, ss []string) bool {
+				for _, s0 := range ss {
+					if s == s0 {
+						return false
+					}
+				}
+				return true
+			}(player.Token, tokens) {
+				tokens = append(tokens, player.Token)
+			}
 		}
 	}
 	ret := map[string]interface{}{
@@ -68,8 +80,10 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, error) {
 		"names": players,
 	}
 	if updated {
-		return ret, SetRoom(txn, room)
-	} else {
-		return ret, nil
+		err = SetRoom(txn, room)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
+	return ret, tokens, err
 }

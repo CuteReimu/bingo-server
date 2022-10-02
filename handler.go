@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
@@ -26,7 +27,7 @@ func handleUpdateName(playerConn *PlayerConn, protoName string, data map[string]
 		return errors.New("名字为空")
 	}
 	err = db.Update(func(txn *badger.Txn) error {
-		player, err := GetPlayer(txn, playerConn.player)
+		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
 		}
@@ -49,7 +50,7 @@ func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data map[str
 		return errors.WithStack(err)
 	}
 	err = db.Update(func(txn *badger.Txn) error {
-		player, err := GetPlayer(txn, playerConn.player)
+		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
 		}
@@ -62,7 +63,7 @@ func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data map[str
 		} else if err != nil {
 			return err
 		}
-		if room.Host != playerConn.player {
+		if room.Host != playerConn.token {
 			return errors.New("不是房主")
 		}
 		room.RoomType = roomType
@@ -77,7 +78,7 @@ func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data map[str
 
 func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
 	err := db.Update(func(txn *badger.Txn) error {
-		player, err := GetPlayer(txn, playerConn.player)
+		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
 		}
@@ -149,7 +150,7 @@ func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]in
 		return errors.New("房间ID为空")
 	}
 	err = db.Update(func(txn *badger.Txn) error {
-		player, err := GetPlayer(txn, playerConn.player)
+		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
 		}
@@ -216,7 +217,7 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 		return errors.WithStack(err)
 	}
 	err = db.Update(func(txn *badger.Txn) error {
-		player, err := GetPlayer(txn, playerConn.player)
+		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
 		}
@@ -233,7 +234,7 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 		var room = Room{
 			RoomId:   rid,
 			RoomType: roomType,
-			Host:     playerConn.player,
+			Host:     playerConn.token,
 			Players:  make([]string, 2),
 		}
 		player.RoomId = rid
@@ -254,9 +255,9 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 }
 
 func handleHeart(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
-	playerConn.Send(Message{
-		Name:  "heart_sc",
-		Reply: protoName,
+	playerConn.Send(&myws.Message{
+		MsgName: "heart_sc",
+		Reply:   protoName,
 		Data: map[string]interface{}{
 			"time": time.Now().UnixMilli(),
 		},
@@ -281,17 +282,17 @@ func handleLogin(playerConn *PlayerConn, protoName string, data map[string]inter
 			return err
 		}
 		player.Token = tokenStr
-		_, loaded := playerConnCache.LoadOrStore(tokenStr, playerConn)
-		if loaded {
+		if _, ok := tokenConnMap[tokenStr]; ok {
 			return errors.New("already online")
+		} else {
+			tokenConnMap[tokenStr] = playerConn
 		}
 		return SetPlayer(txn, player)
 	})
 	if err != nil {
 		return err
 	}
-	playerConn.player = tokenStr
+	playerConn.token = tokenStr
 	playerConn.NotifyPlayerInfo(protoName)
-	playerConn.StartNotifyPlayerInfo()
 	return nil
 }
