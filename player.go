@@ -174,7 +174,9 @@ func (playerConn *PlayerConn) OnDisconnect() {
 			for i := range room.Players {
 				if len(room.Players[i]) != 0 && room.Players[i] != room.Host {
 					p, err := GetPlayer(txn, room.Players[i])
-					if err != nil {
+					if err == badger.ErrKeyNotFound {
+						continue
+					} else if err != nil {
 						return err
 					}
 					p.RoomId = ""
