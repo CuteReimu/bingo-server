@@ -39,7 +39,7 @@ func handleUpdateName(playerConn *PlayerConn, protoName string, data map[string]
 	if err != nil {
 		return err
 	}
-	playerConn.SendSuccess(protoName)
+	playerConn.NotifyPlayerInfo(protoName)
 	return nil
 }
 
@@ -69,7 +69,7 @@ func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data map[str
 	if err != nil {
 		return err
 	}
-	playerConn.SendSuccess(protoName)
+	playerConn.NotifyPlayerInfo(protoName)
 	return nil
 }
 
@@ -125,7 +125,7 @@ func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 	if err != nil {
 		return err
 	}
-	playerConn.SendSuccess(protoName)
+	playerConn.NotifyPlayerInfo(protoName)
 	return nil
 }
 

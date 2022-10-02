@@ -106,13 +106,18 @@ func (playerConn *PlayerConn) Send(message Message) {
 func (playerConn *PlayerConn) SendSync(message Message) {
 	playerConn.mu.Lock()
 	defer playerConn.mu.Unlock()
-	buf, err := json.Marshal(message)
+	buf, err := json.Marshal(message.Data)
 	if err != nil {
 		log.WithError(err).Error("marshal json failed")
 		return
 	}
 	hash := stringHash(buf)
 	if playerConn.syncHash == hash {
+		return
+	}
+	buf, err = json.Marshal(message)
+	if err != nil {
+		log.WithError(err).Error("marshal json failed")
 		return
 	}
 	playerConn.syncHash = hash
@@ -220,14 +225,13 @@ func stringHash(s []byte) (hash uint32) {
 }
 
 func (playerConn *PlayerConn) buildPlayerInfo() (Message, error) {
-	var message Message
+	var message = Message{Name: "room_info_sc"}
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.player)
 		if err != nil {
 			return err
 		}
 		if len(player.RoomId) == 0 {
-			message.Name = "global_info_sc"
 			return nil
 		}
 		room, err := GetRoom(txn, player.RoomId)
@@ -239,7 +243,6 @@ func (playerConn *PlayerConn) buildPlayerInfo() (Message, error) {
 			return err
 		}
 		message.Data["name"] = player.Name
-		message.Name = "room_info_sc"
 		return nil
 	})
 	return message, err
@@ -269,7 +272,7 @@ func (playerConn *PlayerConn) NotifyPlayerInfo(reply string) {
 		log.WithError(err).Error("db error")
 	} else {
 		message.Reply = reply
-		playerConn.Send(message)
+		playerConn.SendSync(message)
 	}
 }
 
