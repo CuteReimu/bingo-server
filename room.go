@@ -39,6 +39,10 @@ func DelRoom(txn *badger.Txn, roomId string) error {
 }
 
 func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, error) {
+	host, err := GetPlayer(txn, room.Host)
+	if err != nil {
+		return nil, err
+	}
 	players := make([]string, len(room.Players))
 	for i := range players {
 		if len(room.Players[i]) > 0 {
@@ -52,7 +56,7 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, error) {
 	return map[string]interface{}{
 		"rid":   room.RoomId,
 		"type":  room.RoomType,
-		"host":  room.Host,
+		"host":  host.Name,
 		"names": players,
 	}, nil
 }
