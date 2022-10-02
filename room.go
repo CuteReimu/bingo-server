@@ -4,6 +4,7 @@ import (
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
+	"time"
 )
 
 func GetRoom(txn *badger.Txn, roomId string) (*Room, error) {
@@ -30,7 +31,7 @@ func SetRoom(txn *badger.Txn, room *Room) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return errors.WithStack(txn.Set(key, val))
+	return errors.WithStack(txn.SetEntry(badger.NewEntry(key, val).WithTTL(6 * time.Hour)))
 }
 
 func DelRoom(txn *badger.Txn, roomId string) error {
@@ -40,23 +41,35 @@ func DelRoom(txn *badger.Txn, roomId string) error {
 
 func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, error) {
 	host, err := GetPlayer(txn, room.Host)
-	if err != nil {
+	if err == badger.ErrKeyNotFound {
+		return nil, DelRoom(txn, room.RoomId)
+	} else if err != nil {
 		return nil, err
 	}
+	var updated bool
 	players := make([]string, len(room.Players))
 	for i := range players {
 		if len(room.Players[i]) > 0 {
 			player, err := GetPlayer(txn, room.Players[i])
-			if err != nil {
+			if err == badger.ErrKeyNotFound {
+				room.Players[i] = ""
+				updated = true
+				continue
+			} else if err != nil {
 				return nil, err
 			}
 			players[i] = player.Name
 		}
 	}
-	return map[string]interface{}{
+	ret := map[string]interface{}{
 		"rid":   room.RoomId,
 		"type":  room.RoomType,
 		"host":  host.Name,
 		"names": players,
-	}, nil
+	}
+	if updated {
+		return ret, SetRoom(txn, room)
+	} else {
+		return ret, nil
+	}
 }

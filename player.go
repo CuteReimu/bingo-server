@@ -235,7 +235,10 @@ func (playerConn *PlayerConn) buildPlayerInfo() (Message, error) {
 			return nil
 		}
 		room, err := GetRoom(txn, player.RoomId)
-		if err != nil {
+		if err == badger.ErrKeyNotFound {
+			player.RoomId = ""
+			return SetPlayer(txn, player)
+		} else if err != nil {
 			return err
 		}
 		message.Data, err = PackRoomInfo(txn, room)
@@ -318,7 +321,7 @@ func SetPlayer(txn *badger.Txn, player *Player) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return errors.WithStack(txn.Set(key, val))
+	return errors.WithStack(txn.SetEntry(badger.NewEntry(key, val).WithTTL(24 * time.Hour)))
 }
 
 func DelPlayer(txn *badger.Txn, token string) error {
