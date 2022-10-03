@@ -123,6 +123,7 @@ func (playerConn *PlayerConn) OnDisconnect() {
 	if err != nil {
 		log.WithError(err).Error("on disconnect error")
 	}
+	delete(tokenConnMap, playerConn.token)
 }
 
 func isAlphaNum(s string) bool {
