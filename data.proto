@@ -13,4 +13,12 @@ message room {
   string host = 3;
   repeated string players = 4;
   bool started = 5;
+  repeated spell spells = 6;
+}
+
+message spell {
+  string game = 1;
+  string name = 2;
+  string rank = 3;
+  int32 star = 4;
 }

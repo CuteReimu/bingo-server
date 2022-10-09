@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/Touhou-Freshman-Camp/bingo-server/arrays"
 	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
@@ -16,6 +17,86 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"leave_room_cs":       handleLeaveRoom,
 	"update_room_type_cs": handleUpdateRoomType,
 	"update_name_cs":      handleUpdateName,
+	"start_game_cs":       handleStartGame,
+	"get_spells_cs":       handleGetSpells,
+}
+
+func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+	var spells []*Spell
+	err := db.View(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if !room.Started {
+			return errors.New("游戏还未开始")
+		}
+		spells = room.Spells
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.Send(&myws.Message{
+		MsgName: "spell_list_sc",
+		Reply:   protoName,
+		Data: map[string]interface{}{
+			"spells": spells,
+		},
+	})
+	return nil
+}
+
+func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+	games, err := cast.ToStringSliceE(data)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	var spells []*Spell
+	err = db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Host != playerConn.token {
+			return errors.New("你不是房主")
+		} else if room.Started {
+			return errors.New("游戏已经开始")
+		} else if arrays.Any(room.Players, func(s string) bool { return len(s) == 0 }) {
+			return errors.New("玩家没满")
+		}
+		spells, err = RandSpells(games)
+		if err != nil {
+			return errors.Wrap(err, "随符卡失败")
+		}
+		room.Started = true
+		room.Spells = spells
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
+		MsgName: "spell_list_sc",
+		Data: map[string]interface{}{
+			"spells": spells,
+		},
+	})
+	return nil
 }
 
 func handleUpdateName(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {

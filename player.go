@@ -148,8 +148,7 @@ func (playerConn *PlayerConn) buildPlayerInfo() (*myws.Message, []string, error)
 		}
 		room, err := GetRoom(txn, player.RoomId)
 		if err == badger.ErrKeyNotFound {
-			player.RoomId = ""
-			return SetPlayer(txn, player)
+			return nil
 		} else if err != nil {
 			return err
 		}
@@ -158,6 +157,7 @@ func (playerConn *PlayerConn) buildPlayerInfo() (*myws.Message, []string, error)
 			return err
 		}
 		message.Data["name"] = player.Name
+		message.Data["started"] = room.Started
 		return nil
 	})
 	if err != nil {
@@ -166,8 +166,53 @@ func (playerConn *PlayerConn) buildPlayerInfo() (*myws.Message, []string, error)
 	return message, tokens, nil
 }
 
+func (playerConn *PlayerConn) getAllPlayersInRoom() ([]string, error) {
+	var tokens []string
+	err := db.View(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return nil
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err == badger.ErrKeyNotFound {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		tokens = append(room.Players, room.Host)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return tokens, nil
+}
+
 func (playerConn *PlayerConn) NotifyPlayerInfo(reply string) {
 	message, tokens, err := playerConn.buildPlayerInfo()
+	if err != nil {
+		log.WithError(err).Error("db error")
+	} else {
+		for _, token := range tokens {
+			if token != playerConn.token {
+				if conn, ok := tokenConnMap[token]; ok {
+					conn.Send(message)
+				}
+			}
+		}
+		playerConn.Send(&myws.Message{
+			MsgName: message.MsgName,
+			Reply:   reply,
+			Data:    message.Data,
+		})
+	}
+}
+
+func (playerConn *PlayerConn) NotifyPlayersInRoom(reply string, message *myws.Message) {
+	tokens, err := playerConn.getAllPlayersInRoom()
 	if err != nil {
 		log.WithError(err).Error("db error")
 	} else {

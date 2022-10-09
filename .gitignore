@@ -1,4 +1,5 @@
 /db/
+*.xlsx
 *.log
 
 # Binaries for programs and plugins
