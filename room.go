@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/CuteReimu/goutil/slices"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
@@ -48,27 +49,18 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, []string
 		return nil, nil, err
 	}
 	tokens = append(tokens, host.Token)
-	var updated bool
 	players := make([]string, len(room.Players))
 	for i := range players {
 		if len(room.Players[i]) > 0 {
 			player, err := GetPlayer(txn, room.Players[i])
 			if err == badger.ErrKeyNotFound {
 				room.Players[i] = ""
-				updated = true
 				continue
 			} else if err != nil {
 				return nil, nil, err
 			}
 			players[i] = player.Name
-			if func(s string, ss []string) bool {
-				for _, s0 := range ss {
-					if s == s0 {
-						return false
-					}
-				}
-				return true
-			}(player.Token, tokens) {
+			if !slices.Contains(tokens, player.Token) {
 				tokens = append(tokens, player.Token)
 			}
 		}
@@ -78,12 +70,6 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, []string
 		"type":  room.RoomType,
 		"host":  host.Name,
 		"names": players,
-	}
-	if updated {
-		err = SetRoom(txn, room)
-		if err != nil {
-			return nil, nil, err
-		}
 	}
 	return ret, tokens, err
 }

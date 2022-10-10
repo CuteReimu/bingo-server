@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/Touhou-Freshman-Camp/bingo-server/arrays"
+	"github.com/CuteReimu/goutil/slices"
 	"github.com/pkg/errors"
 	"github.com/xuri/excelize/v2"
 	"math/rand"
@@ -34,7 +34,7 @@ func RandSpells(games []string) ([]*Spell, error) {
 					if err != nil {
 						return nil, errors.WithStack(err)
 					}
-					inGame := arrays.Contains(games, strings.TrimSpace(row[1]))
+					inGame := slices.Contains(games, strings.TrimSpace(row[1]))
 					if star > 0 && star <= 3 && inGame {
 						spells[star-1] = append(spells[star-1], &Spell{
 							Game: row[1],
@@ -59,17 +59,17 @@ func RandSpells(games []string) ([]*Spell, error) {
 		return nil, errors.New("符卡数量不足")
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixMilli()))
-	arrays.ShuffleN(r, spells[0], 10)
-	arrays.ShuffleN(r, spells[1], 10)
+	slices.ShuffleN(r, spells[0], 10)
+	slices.ShuffleN(r, spells[1], 10)
 	spells01 := append(spells[0][:10:10], spells[1][:10]...)
-	arrays.ShuffleN(r, spells01, len(spells01))
+	slices.ShuffleN(r, spells01, len(spells01))
 	if len(spells[2]) < 5 {
-		arrays.ShuffleN(r, spells[3], 5-len(spells[2]))
+		slices.ShuffleN(r, spells[3], 5-len(spells[2]))
 		spells[2] = append(spells[2], spells[3][:5-len(spells[2])]...)
 	}
-	arrays.ShuffleN(r, spells[2], 5)
+	slices.ShuffleN(r, spells[2], 5)
 	idx := []int{0, 1, 3, 4}
-	arrays.ShuffleN(r, idx, len(idx))
+	slices.ShuffleN(r, idx, len(idx))
 	result := make([]*Spell, 25)
 	result[idx[0]] = spells[2][0]
 	result[5+idx[1]] = spells[2][1]

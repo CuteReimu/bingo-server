@@ -1,7 +1,8 @@
 package main
 
 import (
-	"github.com/Touhou-Freshman-Camp/bingo-server/arrays"
+	"github.com/CuteReimu/goutil/slices"
+	"github.com/CuteReimu/goutil/strings"
 	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
@@ -108,7 +109,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 			return errors.New("你不是房主")
 		} else if room.Started {
 			return errors.New("游戏已经开始")
-		} else if arrays.Any(room.Players, func(s string) bool { return len(s) == 0 }) {
+		} else if slices.Any(room.Players, strings.IsEmpty) {
 			return errors.New("玩家没满")
 		}
 		spells, err = RandSpells(games)
