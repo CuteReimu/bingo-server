@@ -55,7 +55,7 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 }
 
 func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	games, err := cast.ToStringSliceE(data)
+	games, err := cast.ToStringSliceE(data["games"])
 	if err != nil {
 		return errors.WithStack(err)
 	}
