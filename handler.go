@@ -19,6 +19,38 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"update_name_cs":      handleUpdateName,
 	"start_game_cs":       handleStartGame,
 	"get_spells_cs":       handleGetSpells,
+	"stop_game_cs":        handleStopGame,
+}
+
+func handleStopGame(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+	err := db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Host != playerConn.token {
+			return errors.New("你不是房主")
+		} else if !room.Started {
+			return errors.New("游戏还没开始")
+		}
+		room.Started = false
+		room.Spells = nil
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
+		MsgName: "stop_game_sc",
+	})
+	return nil
 }
 
 func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
