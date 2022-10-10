@@ -16,7 +16,7 @@ func ShuffleN[T any](rand *rand.Rand, arr []T, n int) {
 		panic("invalid argument to Shuffle")
 	}
 	for i := 0; i < n; i++ {
-		j := i + rand.Intn(n-i)
+		j := i + rand.Intn(len(arr)-i)
 		arr[i], arr[j] = arr[j], arr[i]
 	}
 }
