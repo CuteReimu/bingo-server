@@ -29,25 +29,25 @@ func RandSpells(games []string) ([]*Spell, error) {
 				return nil, errors.WithStack(err)
 			}
 			for i, row := range rows {
-				if i > 0 && len(row) >= 6 {
-					star, err := strconv.ParseInt(row[5], 10, 32)
+				if i > 0 && len(row) >= 7 {
+					star, err := strconv.ParseInt(row[6], 10, 32)
 					if err != nil {
 						return nil, errors.WithStack(err)
 					}
-					inGame := arrays.Contains(games, strings.TrimSpace(row[0]))
+					inGame := arrays.Contains(games, strings.TrimSpace(row[1]))
 					if star > 0 && star <= 3 && inGame {
 						spells[star-1] = append(spells[star-1], &Spell{
-							Game: row[0],
-							Name: row[2],
-							Rank: row[4],
+							Game: row[1],
+							Name: row[3],
+							Rank: row[5],
 							Star: int32(star),
 						})
 					}
 					if star == 3 && !inGame {
 						spells[3] = append(spells[3], &Spell{
-							Game: row[0],
-							Name: row[2],
-							Rank: row[4],
+							Game: row[1],
+							Name: row[3],
+							Rank: row[5],
 							Star: int32(star),
 						})
 					}
