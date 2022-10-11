@@ -141,6 +141,9 @@ func handleUpdateName(playerConn *PlayerConn, protoName string, data map[string]
 	if len(name) == 0 {
 		return errors.New("名字为空")
 	}
+	if len(name) > 48 {
+		return errors.New("名字太长")
+	}
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -268,12 +271,18 @@ func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]in
 	if len(name) == 0 {
 		return errors.New("名字为空")
 	}
+	if len(name) > 48 {
+		return errors.New("名字太长")
+	}
 	rid, err := cast.ToStringE(data["rid"])
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	if len(rid) == 0 {
 		return errors.New("房间ID为空")
+	}
+	if len(rid) > 16 {
+		return errors.New("房间ID太长")
 	}
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
@@ -338,12 +347,18 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 	if len(name) == 0 {
 		return errors.New("名字为空")
 	}
+	if len(name) > 48 {
+		return errors.New("名字太长")
+	}
 	rid, err := cast.ToStringE(data["rid"])
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	if len(rid) == 0 {
 		return errors.New("房间ID为空")
+	}
+	if len(rid) > 16 {
+		return errors.New("房间ID太长")
 	}
 	roomType, err := cast.ToInt32E(data["type"])
 	if err != nil {
@@ -405,7 +420,7 @@ func handleLogin(playerConn *PlayerConn, protoName string, data map[string]inter
 		return nil
 	}
 	tokenStr, _ := token.(string)
-	if len(tokenStr) == 0 || !isAlphaNum(tokenStr) {
+	if len(tokenStr) == 0 || len(tokenStr) > 128 || !isAlphaNum(tokenStr) {
 		playerConn.SendError(protoName, 400, "invalid token")
 		return nil
 	}
