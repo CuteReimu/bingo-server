@@ -172,7 +172,7 @@ func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data map[str
 			return errors.New("不在房间里")
 		}
 		room, err := GetRoom(txn, player.RoomId)
-		if err == badger.ErrKeyNotFound {
+		if IsErrKeyNotFound(err) {
 			return errors.New("不在房间里")
 		} else if err != nil {
 			return err
@@ -200,7 +200,7 @@ func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 			return errors.New("并不在房间里")
 		}
 		room, err := GetRoom(txn, player.RoomId)
-		if err == badger.ErrKeyNotFound {
+		if IsErrKeyNotFound(err) {
 			return errors.New("不在房间里")
 		} else if err != nil {
 			return err
@@ -272,7 +272,7 @@ func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]in
 			return errors.New("已经在房间里了")
 		}
 		room, err := GetRoom(txn, rid)
-		if err == badger.ErrKeyNotFound {
+		if IsErrKeyNotFound(err) {
 			return errors.New("房间不存在")
 		} else if err != nil {
 			return err

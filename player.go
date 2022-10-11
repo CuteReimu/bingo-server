@@ -91,7 +91,7 @@ func (playerConn *PlayerConn) OnDisconnect() {
 			for i := range room.Players {
 				if len(room.Players[i]) != 0 && room.Players[i] != room.Host {
 					p, err := GetPlayer(txn, room.Players[i])
-					if err == badger.ErrKeyNotFound {
+					if IsErrKeyNotFound(err) {
 						continue
 					} else if err != nil {
 						return err
@@ -147,7 +147,7 @@ func (playerConn *PlayerConn) buildPlayerInfo() (*myws.Message, []string, error)
 			return nil
 		}
 		room, err := GetRoom(txn, player.RoomId)
-		if err == badger.ErrKeyNotFound {
+		if IsErrKeyNotFound(err) {
 			return nil
 		} else if err != nil {
 			return err
@@ -177,7 +177,7 @@ func (playerConn *PlayerConn) getAllPlayersInRoom() ([]string, error) {
 			return nil
 		}
 		room, err := GetRoom(txn, player.RoomId)
-		if err == badger.ErrKeyNotFound {
+		if IsErrKeyNotFound(err) {
 			return nil
 		} else if err != nil {
 			return err

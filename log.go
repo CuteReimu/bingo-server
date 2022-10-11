@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/dgraph-io/badger/v3"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
+	"github.com/pkg/errors"
 	"github.com/rifflock/lfshook"
 	"github.com/sirupsen/logrus"
 	"path"
@@ -38,4 +40,8 @@ type errorEntryWithStack struct {
 
 func (e *errorEntryWithStack) WithError(err error) *logrus.Entry {
 	return e.Entry.WithError(fmt.Errorf("%+v", err))
+}
+
+func IsErrKeyNotFound(err error) bool {
+	return err == badger.ErrKeyNotFound || errors.Unwrap(err) == badger.ErrKeyNotFound
 }

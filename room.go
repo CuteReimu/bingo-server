@@ -43,8 +43,8 @@ func DelRoom(txn *badger.Txn, roomId string) error {
 func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, []string, error) {
 	var tokens []string
 	host, err := GetPlayer(txn, room.Host)
-	if err == badger.ErrKeyNotFound {
-		return nil, nil, DelRoom(txn, room.RoomId)
+	if IsErrKeyNotFound(err) {
+		return nil, nil, nil
 	} else if err != nil {
 		return nil, nil, err
 	}
@@ -53,7 +53,7 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, []string
 	for i := range players {
 		if len(room.Players[i]) > 0 {
 			player, err := GetPlayer(txn, room.Players[i])
-			if err == badger.ErrKeyNotFound {
+			if IsErrKeyNotFound(err) {
 				room.Players[i] = ""
 				continue
 			} else if err != nil {
