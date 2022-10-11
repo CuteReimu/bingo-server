@@ -128,6 +128,13 @@ func (playerConn *PlayerConn) OnDisconnect() {
 		log.WithError(err).Error("on disconnect error")
 	}
 	delete(tokenConnMap, playerConn.token)
+	for _, token := range tokens {
+		conn := tokenConnMap[token]
+		if conn != nil {
+			conn.NotifyPlayerInfo("")
+			break
+		}
+	}
 }
 
 func isAlphaNum(s string) bool {
