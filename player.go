@@ -5,6 +5,7 @@ import (
 	"github.com/davyxu/cellnet"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
+	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 	"time"
 )
@@ -13,6 +14,7 @@ type PlayerConn struct {
 	token string
 	cellnet.Session
 	heartTimer *time.Timer
+	Limit      *rate.Limiter
 }
 
 var tokenConnMap = make(map[string]*PlayerConn)
@@ -28,6 +30,10 @@ func (playerConn *PlayerConn) SetHeartTimer() {
 }
 
 func (playerConn *PlayerConn) Handle(name string, data map[string]interface{}) {
+	if !playerConn.Limit.Allow() {
+		playerConn.Close()
+		return
+	}
 	handler := handlers[name]
 	if handler == nil {
 		log.Warn("can not find handler: ", name)

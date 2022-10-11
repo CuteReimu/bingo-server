@@ -10,6 +10,7 @@ import (
 	_ "github.com/davyxu/cellnet/peer/gorillaws"
 	"github.com/davyxu/cellnet/proc"
 	"github.com/dgraph-io/badger/v3"
+	"golang.org/x/time/rate"
 	"os"
 	"os/signal"
 	"time"
@@ -43,7 +44,7 @@ func main() {
 		switch pb := ev.Message().(type) {
 		case *cellnet.SessionAccepted:
 			log.Info("session connected: ", id)
-			playerConn := &PlayerConn{Session: ev.Session()}
+			playerConn := &PlayerConn{Session: ev.Session(), Limit: rate.NewLimiter(5, 5)}
 			idConnMap[id] = playerConn
 			playerConn.SetHeartTimer()
 		case *myws.Message:
