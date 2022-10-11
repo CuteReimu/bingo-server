@@ -14,6 +14,9 @@ message room {
   repeated string players = 4;
   bool started = 5;
   repeated spell spells = 6;
+  int64 start_ms = 7;
+  uint32 game_time = 8; // 比赛时长，分
+  uint32 countdown = 9; // 倒计时，秒
 }
 
 message spell {

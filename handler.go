@@ -43,6 +43,9 @@ func handleStopGame(playerConn *PlayerConn, protoName string, _ map[string]inter
 		}
 		room.Started = false
 		room.Spells = nil
+		room.StartMs = 0
+		room.GameTime = 0
+		room.Countdown = 0
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -56,6 +59,8 @@ func handleStopGame(playerConn *PlayerConn, protoName string, _ map[string]inter
 
 func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
 	var spells []*Spell
+	var startTime int64
+	var gameTime, countdown uint32
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -72,6 +77,9 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 			return errors.New("游戏还未开始")
 		}
 		spells = room.Spells
+		startTime = room.StartMs
+		countdown = room.Countdown
+		gameTime = room.GameTime
 		return nil
 	})
 	if err != nil {
@@ -81,17 +89,42 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 		MsgName: "spell_list_sc",
 		Reply:   protoName,
 		Data: map[string]interface{}{
-			"spells": spells,
+			"spells":     spells,
+			"time":       time.Now().UnixMilli(),
+			"start_time": startTime,
+			"game_time":  gameTime,
+			"countdown":  countdown,
 		},
 	})
 	return nil
 }
 
 func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+	gameTime, err := cast.ToUint32E(data["game_time"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if gameTime == 0 {
+		return errors.New("游戏时间不能为0")
+	}
+	if gameTime > 1440 {
+		return errors.New("游戏时间太长")
+	}
+	countdown, err := cast.ToUint32E(data["countdown"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if countdown > 86400 {
+		return errors.New("倒计时太长")
+	}
 	games, err := cast.ToStringSliceE(data["games"])
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	if len(games) > 99 {
+		return errors.New("选择的作品数太多")
+	}
+	startTime := time.Now().UnixMilli()
 	var spells []*Spell
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
@@ -118,6 +151,9 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 		}
 		room.Started = true
 		room.Spells = spells
+		room.StartMs = startTime
+		room.Countdown = countdown
+		room.GameTime = gameTime
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -126,8 +162,11 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
 		MsgName: "spell_list_sc",
 		Data: map[string]interface{}{
-			"spells": spells,
-			"time":   time.Now().UnixMilli(),
+			"spells":     spells,
+			"time":       startTime,
+			"start_time": startTime,
+			"game_time":  gameTime,
+			"countdown":  countdown,
 		},
 	})
 	return nil
