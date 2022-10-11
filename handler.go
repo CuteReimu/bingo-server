@@ -235,6 +235,7 @@ func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data map[str
 
 func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
 	var tokens []string
+	var roomDestroyed bool
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -273,6 +274,7 @@ func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 			if err = DelRoom(txn, room.RoomId); err != nil {
 				return err
 			}
+			roomDestroyed = true
 		} else {
 			for i := range room.Players {
 				if room.Players[i] == player.Token {
@@ -295,8 +297,12 @@ func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 	for _, token := range tokens {
 		conn := tokenConnMap[token]
 		if conn != nil {
-			conn.NotifyPlayerInfo("")
-			break
+			if roomDestroyed {
+				conn.Send(&myws.Message{MsgName: "room_info_sc"})
+			} else {
+				conn.NotifyPlayerInfo("")
+				break
+			}
 		}
 	}
 	return nil
