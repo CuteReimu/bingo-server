@@ -289,6 +289,13 @@ func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]in
 		} else if err != nil {
 			return err
 		}
+		host, err := GetPlayer(txn, room.Host)
+		if err != nil {
+			return err
+		}
+		if host.Name == name {
+			return errors.New("名字重复")
+		}
 		player.RoomId = rid
 		player.Name = name
 		if err = SetPlayer(txn, player); err != nil {
