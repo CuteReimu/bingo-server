@@ -21,6 +21,86 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"start_game_cs":       handleStartGame,
 	"get_spells_cs":       handleGetSpells,
 	"stop_game_cs":        handleStopGame,
+	"update_spell_cs":     handleUpdateSpell,
+}
+
+func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+	idx, err := cast.ToUint32E(data["idx"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if idx >= 25 {
+		return errors.New("idx超出范围")
+	}
+	status, err := cast.ToUint32E(data["status"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	status0, status1 := status&0x3, (status&0xC)>>2
+	if status > 0xF || status0 > 0x3 || status1 > 0x3 || status0 != 0 && status1 != 0 {
+		return errors.New("status不合法")
+	}
+	err = db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if !room.Started {
+			return errors.New("游戏还没开始")
+		}
+		st := room.Status[idx]
+		if st == status {
+			return nil
+		}
+		st0, st1 := st&0x3, (st&0xC)>>2
+		if st0 == 2 && status0 == 1 || st1 == 2 && status1 == 1 {
+			// 不可能从已打完变为正在打
+			return errors.New("权限不足")
+		}
+		if status == 0 && (st0 == 1 && room.Players[0] != playerConn.token || st1 == 1 && room.Players[1] != playerConn.token) {
+			// 只有玩家自己能取消正在打的状态
+			return errors.New("权限不足")
+		}
+		if st0 == 0 && status0 == 1 && room.Players[0] != playerConn.token || st1 == 0 && status1 == 1 && room.Players[1] != playerConn.token {
+			// 只有玩家自己能变为正在打的状态
+			return errors.New("权限不足")
+		}
+		if status == 0 && (st0 == 2 || st1 == 2) && room.Host != playerConn.token {
+			// 只有房主可以取消已打完的状态
+			return errors.New("权限不足")
+		}
+		if (st0 == 0 || st0 == 1) && status0 == 2 && room.Host != playerConn.token && room.Players[0] != playerConn.token ||
+			(st1 == 0 || st1 == 1) && status1 == 2 && room.Host != playerConn.token && room.Players[1] != playerConn.token {
+			// 只有房主或自己可以变为已打完
+			return errors.New("权限不足")
+		}
+		if status == 0 {
+			room.Status[idx] = 0
+		} else if status0 != 0 {
+			room.Status[idx] = status0 | st1
+		} else if status1 != 0 {
+			room.Status[idx] = status1 | st0
+		}
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
+		MsgName: "update_spell_sc",
+		Data: map[string]interface{}{
+			"idx":    idx,
+			"status": status,
+		},
+	})
+	return nil
 }
 
 func handleStopGame(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
@@ -61,6 +141,7 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 	var spells []*Spell
 	var startTime int64
 	var gameTime, countdown uint32
+	var status map[uint32]uint32
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -80,12 +161,13 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 		startTime = room.StartMs
 		countdown = room.Countdown
 		gameTime = room.GameTime
+		status = room.Status
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-	playerConn.Send(&myws.Message{
+	message := &myws.Message{
 		MsgName: "spell_list_sc",
 		Reply:   protoName,
 		Data: map[string]interface{}{
@@ -95,7 +177,11 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 			"game_time":  gameTime,
 			"countdown":  countdown,
 		},
-	})
+	}
+	if status != nil {
+		message.Data["status"] = status
+	}
+	playerConn.Send(message)
 	return nil
 }
 
