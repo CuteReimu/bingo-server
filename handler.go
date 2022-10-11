@@ -127,6 +127,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 		MsgName: "spell_list_sc",
 		Data: map[string]interface{}{
 			"spells": spells,
+			"time":   time.Now().UnixMilli(),
 		},
 	})
 	return nil
