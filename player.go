@@ -72,6 +72,7 @@ func (playerConn *PlayerConn) OnDisconnect() {
 	if len(playerConn.token) == 0 {
 		return
 	}
+	var tokens []string
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -90,6 +91,7 @@ func (playerConn *PlayerConn) OnDisconnect() {
 		if room.Host == player.Token {
 			for i := range room.Players {
 				if len(room.Players[i]) != 0 && room.Players[i] != room.Host {
+					tokens = append(tokens, room.Players[i])
 					p, err := GetPlayer(txn, room.Players[i])
 					if IsErrKeyNotFound(err) {
 						continue
@@ -111,6 +113,8 @@ func (playerConn *PlayerConn) OnDisconnect() {
 			for i := range room.Players {
 				if room.Players[i] == player.Token {
 					room.Players[i] = ""
+				} else {
+					tokens = append(tokens, room.Players[i])
 				}
 			}
 			err = SetRoom(txn, room)
