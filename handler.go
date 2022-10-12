@@ -40,6 +40,7 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 	if status > 0xF || status0 > 0x3 || status1 > 0x3 || status0 != 0 && status1 != 0 {
 		return errors.New("status不合法")
 	}
+	var newStatus uint32
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -56,38 +57,39 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 			return errors.New("游戏还没开始")
 		}
 		st := room.Status[idx]
-		if st == status {
-			return nil
-		}
 		st0, st1 := st&0x3, (st&0xC)>>2
-		if st0 == 2 && status0 == 1 || st1 == 2 && status1 == 1 {
-			// 不可能从已打完变为正在打
-			return errors.New("权限不足")
+		switch playerConn.token {
+		case room.Host:
+			if status == 0 && (st0 == 1 || st1 == 1) || status0 == 1 || status1 == 1 {
+				return errors.New("权限不足")
+			}
+			newStatus = status
+		case room.Players[0]:
+			if status1 != 0 || st0 == 2 && status0 != 2 {
+				return errors.New("权限不足")
+			}
+			if st1 == 2 {
+				return errors.New("对方已经打完")
+			}
+			if st0 == 2 {
+				newStatus = 2
+			} else {
+				newStatus = status0 | (st1 << 2)
+			}
+		case room.Players[1]:
+			if status0 != 0 || st1 == 2 && status1 != 2 {
+				return errors.New("权限不足")
+			}
+			if st0 == 2 {
+				return errors.New("对方已经打完")
+			}
+			if st1 == 2 {
+				newStatus = 2
+			} else {
+				newStatus = st0 | (status1 << 2)
+			}
 		}
-		if status == 0 && (st0 == 1 && room.Players[0] != playerConn.token || st1 == 1 && room.Players[1] != playerConn.token) {
-			// 只有玩家自己能取消正在打的状态
-			return errors.New("权限不足")
-		}
-		if st0 == 0 && status0 == 1 && room.Players[0] != playerConn.token || st1 == 0 && status1 == 1 && room.Players[1] != playerConn.token {
-			// 只有玩家自己能变为正在打的状态
-			return errors.New("权限不足")
-		}
-		if status == 0 && (st0 == 2 || st1 == 2) && room.Host != playerConn.token {
-			// 只有房主可以取消已打完的状态
-			return errors.New("权限不足")
-		}
-		if (st0 == 0 || st0 == 1) && status0 == 2 && room.Host != playerConn.token && room.Players[0] != playerConn.token ||
-			(st1 == 0 || st1 == 1) && status1 == 2 && room.Host != playerConn.token && room.Players[1] != playerConn.token {
-			// 只有房主或自己可以变为已打完
-			return errors.New("权限不足")
-		}
-		if status == 0 {
-			room.Status[idx] = 0
-		} else if status0 != 0 {
-			room.Status[idx] = status0 | st1
-		} else if status1 != 0 {
-			room.Status[idx] = status1 | st0
-		}
+		room.Status[idx] = newStatus
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -97,7 +99,7 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		MsgName: "update_spell_sc",
 		Data: map[string]interface{}{
 			"idx":    idx,
-			"status": status,
+			"status": newStatus,
 		},
 	})
 	return nil
