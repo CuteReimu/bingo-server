@@ -240,6 +240,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 		room.StartMs = startTime
 		room.Countdown = countdown
 		room.GameTime = gameTime
+		room.Status = make(map[uint32]uint32)
 		return SetRoom(txn, room)
 	})
 	if err != nil {
