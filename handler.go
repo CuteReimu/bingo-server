@@ -107,14 +107,7 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 				tokens = append(tokens, room.Players[0])
 			}
 		}
-		if newStatus == 0 {
-			delete(room.Status, idx)
-		} else {
-			if room.Status == nil {
-				room.Status = make(map[uint32]uint32)
-			}
-			room.Status[idx] = newStatus
-		}
+		room.Status[idx] = newStatus
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -179,7 +172,7 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 	var spells []*Spell
 	var startTime int64
 	var gameTime, countdown uint32
-	var status map[uint32]uint32
+	var status []uint32
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -217,11 +210,7 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 		},
 	}
 	if len(status) > 0 {
-		l := make([]map[string]uint32, 0, len(status))
-		for idx, s := range status {
-			l = append(l, map[string]uint32{"idx": idx, "status": s})
-		}
-		message.Data["status"] = l
+		message.Data["status"] = status
 	}
 	playerConn.Send(message)
 	return nil
@@ -282,6 +271,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 		room.StartMs = startTime
 		room.Countdown = countdown
 		room.GameTime = gameTime
+		room.Status = make([]uint32, len(spells))
 		return SetRoom(txn, room)
 	})
 	if err != nil {
