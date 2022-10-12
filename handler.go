@@ -453,7 +453,12 @@ func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]in
 			return err
 		}
 		if len(player.RoomId) != 0 {
-			return errors.New("已经在房间里了")
+			_, err = GetRoom(txn, player.RoomId)
+			if err == nil {
+				return errors.New("已经在房间里了")
+			} else if !IsErrKeyNotFound(err) {
+				return errors.WithStack(err)
+			}
 		}
 		room, err := GetRoom(txn, rid)
 		if IsErrKeyNotFound(err) {
@@ -533,7 +538,12 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 			return err
 		}
 		if len(player.RoomId) != 0 {
-			return errors.New("already in room")
+			_, err = GetRoom(txn, player.RoomId)
+			if err == nil {
+				return errors.New("已经在房间里了")
+			} else if !IsErrKeyNotFound(err) {
+				return errors.WithStack(err)
+			}
 		}
 		key := append([]byte("room: "), []byte(rid)...)
 		_, err = txn.Get(key)

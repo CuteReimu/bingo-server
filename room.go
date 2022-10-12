@@ -32,7 +32,7 @@ func SetRoom(txn *badger.Txn, room *Room) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return errors.WithStack(txn.SetEntry(badger.NewEntry(key, val).WithTTL(6 * time.Hour)))
+	return errors.WithStack(txn.SetEntry(badger.NewEntry(key, val).WithTTL(2 * time.Hour)))
 }
 
 func DelRoom(txn *badger.Txn, roomId string) error {
