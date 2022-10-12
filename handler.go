@@ -42,6 +42,7 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 	}
 	var newStatus uint32
 	var tokens []string
+	now := time.Now().UnixMilli()
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -56,6 +57,12 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		}
 		if !room.Started {
 			return errors.New("游戏还没开始")
+		}
+		if room.StartMs > now-int64(room.Countdown)*1000 {
+			return errors.New("倒计时还没结束")
+		}
+		if room.StartMs <= now-int64(room.GameTime)*60000 {
+			return errors.New("游戏时间到")
 		}
 		st := room.Status[idx]
 		st0, st1 := st&0x3, (st&0xC)>>2
