@@ -58,14 +58,14 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		if !room.Started {
 			return errors.New("游戏还没开始")
 		}
-		if room.StartMs > now-int64(room.Countdown)*1000 {
-			return errors.New("倒计时还没结束")
-		}
 		if room.StartMs <= now-int64(room.GameTime)*60000 {
 			return errors.New("游戏时间到")
 		}
 		st := room.Status[idx]
 		st0, st1 := st&0x3, (st&0xC)>>2
+		if room.StartMs > now-int64(room.Countdown)*1000 && status0 != 1 && status1 != 1 && !(status == 0 && (st0 == 1 || st1 == 1)) {
+			return errors.New("倒计时还没结束")
+		}
 		tokens = append(tokens, room.Host)
 		switch playerConn.token {
 		case room.Host:
