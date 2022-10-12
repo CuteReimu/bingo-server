@@ -18,6 +18,8 @@ message room {
   uint32 game_time = 8; // 比赛时长，分
   uint32 countdown = 9; // 倒计时，秒
   repeated uint32 status = 10; // 每个格子的状态，idx->状态
+  repeated uint32 score = 11; // 比分
+  string winner_name = 12; // 上一局的赢家
 }
 
 message spell {
