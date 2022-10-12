@@ -149,6 +149,7 @@ func handleStopGame(playerConn *PlayerConn, protoName string, _ map[string]inter
 		room.StartMs = 0
 		room.GameTime = 0
 		room.Countdown = 0
+		room.Status = nil
 		return SetRoom(txn, room)
 	})
 	if err != nil {
