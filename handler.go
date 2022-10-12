@@ -41,6 +41,7 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		return errors.New("status不合法")
 	}
 	var newStatus uint32
+	var tokens []string
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -58,12 +59,14 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		}
 		st := room.Status[idx]
 		st0, st1 := st&0x3, (st&0xC)>>2
+		tokens = append(tokens, room.Host)
 		switch playerConn.token {
 		case room.Host:
 			if status == 0 && (st0 == 1 || st1 == 1) || status0 == 1 || status1 == 1 {
 				return errors.New("权限不足")
 			}
 			newStatus = status
+			tokens = append(tokens, room.Players...)
 		case room.Players[0]:
 			if status1 != 0 || st0 == 2 && status0 != 2 {
 				return errors.New("权限不足")
@@ -75,6 +78,10 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 				newStatus = 2
 			} else {
 				newStatus = status0 | (st1 << 2)
+			}
+			tokens = append(tokens, room.Players[0])
+			if status0 != 1 && status0 != 0 {
+				tokens = append(tokens, room.Players[1])
 			}
 		case room.Players[1]:
 			if status0 != 0 || st1 == 2 && status1 != 2 {
@@ -88,6 +95,10 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 			} else {
 				newStatus = st0 | (status1 << 2)
 			}
+			tokens = append(tokens, room.Players[1])
+			if status1 != 1 && status1 != 0 {
+				tokens = append(tokens, room.Players[0])
+			}
 		}
 		room.Status[idx] = newStatus
 		return SetRoom(txn, room)
@@ -95,13 +106,23 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 	if err != nil {
 		return err
 	}
-	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
-		MsgName: "update_spell_sc",
-		Data: map[string]interface{}{
-			"idx":    idx,
-			"status": newStatus,
-		},
-	})
+	for _, token := range tokens {
+		if len(token) > 0 {
+			if conn, ok := tokenConnMap[token]; ok {
+				message := &myws.Message{
+					MsgName: "update_spell_sc",
+					Data: map[string]interface{}{
+						"idx":    idx,
+						"status": newStatus,
+					},
+				}
+				if token == playerConn.token {
+					message.Reply = protoName
+				}
+				conn.Send(message)
+			}
+		}
+	}
 	return nil
 }
 
