@@ -4,6 +4,8 @@ github.com/CuteReimu/goutil v0.0.0-20221010113903-ec424990666c h1:vQzheO1NbeoQo2
 github.com/CuteReimu/goutil v0.0.0-20221010113903-ec424990666c/go.mod h1:3XM5kej60I74JvS1qCK13KVkT+naSpsBbw6QqhvDhpw=
 github.com/CuteReimu/goutil v0.0.0-20221013040006-8d8d29fff0df h1:YULxKouuvnsmGkGqQPtjbdD/giSrSzUEi/P49hRSL/4=
 github.com/CuteReimu/goutil v0.0.0-20221013040006-8d8d29fff0df/go.mod h1:3XM5kej60I74JvS1qCK13KVkT+naSpsBbw6QqhvDhpw=
+github.com/CuteReimu/goutil v0.0.0-20221013073220-bc1131b53c26 h1:V+4Rif19l3tsNmIaNuAjR9f02nyn0uCbl5p0gR2ZSdo=
+github.com/CuteReimu/goutil v0.0.0-20221013073220-bc1131b53c26/go.mod h1:3XM5kej60I74JvS1qCK13KVkT+naSpsBbw6QqhvDhpw=
 github.com/OneOfOne/xxhash v1.2.2 h1:KMrpdQIwFcEqXDklaen+P1axHaj9BSKzvpUUfnHldSE=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6/go.mod h1:grANhF5doyWs3UAsr3K4I6qtAmlQcZDesFNEHPZAzj8=

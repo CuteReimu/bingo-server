@@ -85,3 +85,29 @@ func RandSpells(games []string) ([]*Spell, error) {
 	}
 	return result, nil
 }
+
+func (x SpellStatus) isSelectStatus() bool {
+	return x == SpellStatus_left_select || x == SpellStatus_right_select || x == SpellStatus_both_select
+}
+
+func (x SpellStatus) isLeftStatus() bool {
+	return x == SpellStatus_left_select || x == SpellStatus_left_get
+}
+
+func (x SpellStatus) isRightStatus() bool {
+	return x == SpellStatus_right_select || x == SpellStatus_right_get
+}
+
+func (x SpellStatus) hideLeftSelect() SpellStatus {
+	if x == SpellStatus_both_select {
+		return SpellStatus_right_select
+	}
+	return x
+}
+
+func (x SpellStatus) hideRightSelect() SpellStatus {
+	if x == SpellStatus_both_select {
+		return SpellStatus_left_select
+	}
+	return x
+}

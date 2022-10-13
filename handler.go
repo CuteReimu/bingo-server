@@ -32,15 +32,18 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 	if idx >= 25 {
 		return errors.New("idx超出范围")
 	}
-	status, err := cast.ToUint32E(data["status"])
+	statusVal, err := cast.ToInt32E(data["status"])
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	status0, status1 := status&0x3, (status&0xC)>>2
-	if status > 0xF || status0 > 0x3 || status1 > 0x3 || status0 != 0 && status1 != 0 {
+	if _, ok := SpellStatus_name[statusVal]; !ok {
 		return errors.New("status不合法")
 	}
-	var newStatus uint32
+	status := SpellStatus(statusVal)
+	if status == SpellStatus_banned || status == SpellStatus_both_select {
+		return errors.New("status不合法")
+	}
+	var newStatus SpellStatus
 	var tokens []string
 	now := time.Now().UnixMilli()
 	err = db.Update(func(txn *badger.Txn) error {
@@ -62,49 +65,70 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 			return errors.New("游戏时间到")
 		}
 		st := room.Status[idx]
-		st0, st1 := st&0x3, (st&0xC)>>2
-		if room.StartMs > now-int64(room.Countdown)*1000 && status0 != 1 && status1 != 1 && !(status == 0 && (st0 == 1 || st1 == 1)) {
+		if room.StartMs > now-int64(room.Countdown)*1000 && !status.isSelectStatus() && !(status == SpellStatus_none && st.isSelectStatus()) {
 			return errors.New("倒计时还没结束")
 		}
 		tokens = append(tokens, room.Host)
 		switch playerConn.token {
 		case room.Host:
-			if status == 0 && (st0 == 1 || st1 == 1) || status0 == 1 || status1 == 1 {
+			if status == SpellStatus_none && st.isSelectStatus() || status.isSelectStatus() {
 				return errors.New("权限不足")
 			}
 			newStatus = status
 			tokens = append(tokens, room.Players...)
 		case room.Players[0]:
-			if status1 != 0 || st0 == 2 && status0 != 2 {
+			if status.isRightStatus() || st == SpellStatus_left_get && status != SpellStatus_left_get {
 				return errors.New("权限不足")
 			}
-			if st1 == 2 {
+			if st == SpellStatus_right_get {
 				return errors.New("对方已经打完")
 			}
-			if status0 == 2 {
-				newStatus = status0
-			} else {
-				newStatus = status0 | (st1 << 2)
+			switch status {
+			case SpellStatus_left_get:
+				newStatus = status
+			case SpellStatus_left_select:
+				if st == SpellStatus_right_select {
+					newStatus = SpellStatus_both_select
+				} else {
+					newStatus = status
+				}
+			case SpellStatus_none:
+				if st == SpellStatus_both_select {
+					newStatus = SpellStatus_right_select
+				} else {
+					newStatus = status
+				}
 			}
 			tokens = append(tokens, room.Players[0])
-			if status0 != 1 && status0 != 0 {
+			if status != SpellStatus_left_select && status != SpellStatus_none {
 				tokens = append(tokens, room.Players[1])
 			}
 		case room.Players[1]:
-			if status0 != 0 || st1 == 2 && status1 != 2 {
+			if status.isLeftStatus() || st == SpellStatus_right_get && status != SpellStatus_right_get {
 				return errors.New("权限不足")
 			}
-			if st0 == 2 {
+			if st == SpellStatus_left_get {
 				return errors.New("对方已经打完")
 			}
-			if status1 == 2 {
-				newStatus = status1 << 2
-			} else {
-				newStatus = st0 | (status1 << 2)
+			switch status {
+			case SpellStatus_right_get:
+				newStatus = status
+			case SpellStatus_right_select:
+				if st == SpellStatus_left_select {
+					newStatus = SpellStatus_both_select
+				} else {
+					newStatus = status
+				}
+			case SpellStatus_none:
+				if st == SpellStatus_both_select {
+					newStatus = SpellStatus_left_select
+				} else {
+					newStatus = status
+				}
 			}
-			tokens = append(tokens, room.Players[1])
-			if status1 != 1 && status1 != 0 {
-				tokens = append(tokens, room.Players[0])
+			tokens = append(tokens, room.Players[0])
+			if status != SpellStatus_right_select && status != SpellStatus_none {
+				tokens = append(tokens, room.Players[1])
 			}
 		}
 		room.Status[idx] = newStatus
@@ -185,7 +209,7 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 	var spells []*Spell
 	var startTime int64
 	var gameTime, countdown uint32
-	var status []uint32
+	var status []int32
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -205,11 +229,12 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 		startTime = room.StartMs
 		countdown = room.Countdown
 		gameTime = room.GameTime
-		status = room.Status
 		if playerConn.token == room.Players[0] {
-			status = slices.Map(status, func(e uint32) uint32 { return e & 0xB })
+			status = slices.Map(room.Status, func(e SpellStatus) int32 { return int32(e.hideRightSelect()) })
 		} else if playerConn.token == room.Players[1] {
-			status = slices.Map(status, func(e uint32) uint32 { return e & 0xE })
+			status = slices.Map(room.Status, func(e SpellStatus) int32 { return int32(e.hideLeftSelect()) })
+		} else {
+			status = slices.Map(room.Status, func(e SpellStatus) int32 { return int32(e) })
 		}
 		return nil
 	})
@@ -289,7 +314,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 		room.StartMs = startTime
 		room.Countdown = countdown
 		room.GameTime = gameTime
-		room.Status = make([]uint32, len(spells))
+		room.Status = make([]SpellStatus, len(spells))
 		return SetRoom(txn, room)
 	})
 	if err != nil {

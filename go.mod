@@ -3,7 +3,7 @@ module github.com/Touhou-Freshman-Camp/bingo-server
 go 1.19
 
 require (
-	github.com/CuteReimu/goutil v0.0.0-20221013040006-8d8d29fff0df
+	github.com/CuteReimu/goutil v0.0.0-20221013073220-bc1131b53c26
 	github.com/davyxu/cellnet v4.1.0+incompatible
 	github.com/davyxu/golog v0.1.0
 	github.com/dgraph-io/badger/v3 v3.2103.2
