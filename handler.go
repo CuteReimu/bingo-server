@@ -144,7 +144,7 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 					MsgName: "update_spell_sc",
 					Data: map[string]interface{}{
 						"idx":    idx,
-						"status": newStatus,
+						"status": int32(newStatus),
 					},
 				}
 				if token == playerConn.token {
