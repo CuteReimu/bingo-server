@@ -134,15 +134,15 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 }
 
 func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	var winnerName string
+	var winnerIdx int32 = -1
 	var err error
 	if winner, ok := data["winner"]; ok {
-		winnerName, err = cast.ToStringE(winner)
+		winnerIdx, err = cast.ToInt32E(winner)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		if len(winnerName) > 48 {
-			return errors.New("winner名字太长")
+		if winnerIdx != 0 && winnerIdx != 1 {
+			return errors.New("winner不正确")
 		}
 	}
 	err = db.Update(func(txn *badger.Txn) error {
@@ -162,21 +162,8 @@ func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]in
 		} else if !room.Started {
 			return errors.New("游戏还没开始")
 		}
-		if len(winnerName) > 0 {
-			var winnerIdx int
-			for winnerIdx = 0; winnerIdx < len(room.Players); winnerIdx++ {
-				p, err := GetPlayer(txn, room.Players[winnerIdx])
-				if err != nil {
-					return err
-				}
-				if p.Name == winnerName {
-					room.Score[winnerIdx]++
-					break
-				}
-			}
-			if winnerIdx == len(room.Players) {
-				return errors.New("winner不存在")
-			}
+		if winnerIdx >= 0 {
+			room.Score[winnerIdx]++
 		}
 		room.Started = false
 		room.Spells = nil
@@ -184,7 +171,7 @@ func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]in
 		room.GameTime = 0
 		room.Countdown = 0
 		room.Status = nil
-		room.WinnerName = winnerName
+		room.WinnerIdx = winnerIdx + 1
 		return SetRoom(txn, room)
 	})
 	if err != nil {
