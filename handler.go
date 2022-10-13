@@ -207,13 +207,9 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 		gameTime = room.GameTime
 		status = room.Status
 		if playerConn.token == room.Players[0] {
-			for i := range status {
-				status[i] = status[i] & 0xB
-			}
+			status = slices.Map(status, func(e uint32) uint32 { return e & 0xB })
 		} else if playerConn.token == room.Players[1] {
-			for i := range status {
-				status[i] = status[i] & 0xE
-			}
+			status = slices.Map(status, func(e uint32) uint32 { return e & 0xE })
 		}
 		return nil
 	})
