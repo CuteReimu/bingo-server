@@ -206,6 +206,15 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 		countdown = room.Countdown
 		gameTime = room.GameTime
 		status = room.Status
+		if playerConn.token == room.Players[0] {
+			for i := range status {
+				status[i] = status[i] & 0xB
+			}
+		} else if playerConn.token == room.Players[1] {
+			for i := range status {
+				status[i] = status[i] & 0xE
+			}
+		}
 		return nil
 	})
 	if err != nil {
