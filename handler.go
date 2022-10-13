@@ -81,8 +81,8 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 			if st1 == 2 {
 				return errors.New("对方已经打完")
 			}
-			if st0 == 2 {
-				newStatus = 2
+			if status0 == 2 {
+				newStatus = status0
 			} else {
 				newStatus = status0 | (st1 << 2)
 			}
@@ -97,8 +97,8 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 			if st0 == 2 {
 				return errors.New("对方已经打完")
 			}
-			if st1 == 2 {
-				newStatus = 2
+			if status1 == 2 {
+				newStatus = status1 << 2
 			} else {
 				newStatus = st0 | (status1 << 2)
 			}
