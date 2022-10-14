@@ -126,9 +126,9 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 					newStatus = status
 				}
 			}
-			tokens = append(tokens, room.Players[0])
+			tokens = append(tokens, room.Players[1])
 			if status != SpellStatus_right_select && status != SpellStatus_none {
-				tokens = append(tokens, room.Players[1])
+				tokens = append(tokens, room.Players[0])
 			}
 		}
 		room.Status[idx] = newStatus
