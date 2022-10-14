@@ -657,6 +657,11 @@ func handleLogin(playerConn *PlayerConn, protoName string, data map[string]inter
 		return err
 	}
 	playerConn.token = tokenStr
-	playerConn.NotifyPlayerInfo(protoName)
+	message, _, err := playerConn.buildPlayerInfo()
+	message.Reply = protoName
+	if err != nil {
+		return err
+	}
+	playerConn.Send(message)
 	return nil
 }
