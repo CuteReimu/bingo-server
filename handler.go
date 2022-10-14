@@ -200,7 +200,11 @@ func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]in
 	if err != nil {
 		return err
 	}
-	playerConn.NotifyPlayerInfo(protoName, KVPair{"winner", winnerIdx})
+	if winnerIdx == -1 {
+		playerConn.NotifyPlayerInfo(protoName)
+	} else {
+		playerConn.NotifyPlayerInfo(protoName, KVPair{"winner", winnerIdx})
+	}
 	return nil
 }
 
