@@ -195,13 +195,12 @@ func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]in
 		room.GameTime = 0
 		room.Countdown = 0
 		room.Status = nil
-		room.WinnerIdx = winnerIdx + 1
 		return SetRoom(txn, room)
 	})
 	if err != nil {
 		return err
 	}
-	playerConn.NotifyPlayerInfo(protoName)
+	playerConn.NotifyPlayerInfo(protoName, KVPair{"winner", winnerIdx})
 	return nil
 }
 

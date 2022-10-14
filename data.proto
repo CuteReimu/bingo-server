@@ -19,7 +19,6 @@ message room {
   uint32 countdown = 9; // 倒计时，秒
   repeated spell_status status = 10; // 每个格子的状态
   repeated uint32 score = 11; // 比分
-  int32 winner_idx = 12; // 上一局的赢家
 }
 
 message spell {

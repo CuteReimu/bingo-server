@@ -182,9 +182,6 @@ func (playerConn *PlayerConn) buildPlayerInfo() (*myws.Message, []string, error)
 		message.Data["name"] = player.Name
 		message.Data["started"] = room.Started
 		message.Data["score"] = room.Score
-		if room.WinnerIdx > 0 {
-			message.Data["winner"] = room.WinnerIdx - 1
-		}
 		return nil
 	})
 	if err != nil {
@@ -218,8 +215,11 @@ func (playerConn *PlayerConn) getAllPlayersInRoom() ([]string, error) {
 	return tokens, nil
 }
 
-func (playerConn *PlayerConn) NotifyPlayerInfo(reply string) {
+func (playerConn *PlayerConn) NotifyPlayerInfo(reply string, pairs ...KVPair) {
 	message, tokens, err := playerConn.buildPlayerInfo()
+	for _, pair := range pairs {
+		message.Data[pair.Key] = pair.Value
+	}
 	if err != nil {
 		log.WithError(err).Error("db error")
 	} else {
@@ -306,4 +306,9 @@ func SetPlayer(txn *badger.Txn, player *Player) error {
 func DelPlayer(txn *badger.Txn, token string) error {
 	key := append([]byte("token: "), []byte(token)...)
 	return errors.WithStack(txn.Delete(key))
+}
+
+type KVPair struct {
+	Key   string
+	Value interface{}
 }
