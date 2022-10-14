@@ -61,7 +61,7 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		if !room.Started {
 			return errors.New("游戏还没开始")
 		}
-		if room.StartMs <= now-int64(room.GameTime)*60000 {
+		if room.StartMs <= now-int64(room.GameTime)*60000-int64(room.Countdown)*1000 {
 			return errors.New("游戏时间到")
 		}
 		st := room.Status[idx]
