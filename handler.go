@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/CuteReimu/goutil/slices"
-	"github.com/CuteReimu/goutil/strings"
 	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
@@ -233,11 +232,11 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 		countdown = room.Countdown
 		gameTime = room.GameTime
 		if playerConn.token == room.Players[0] {
-			status = slices.Map(room.Status, func(e SpellStatus) int32 { return int32(e.hideRightSelect()) })
+			status = slices.Map(len(room.Status), func(i int) (int32, bool) { return int32(room.Status[i].hideRightSelect()), true })
 		} else if playerConn.token == room.Players[1] {
-			status = slices.Map(room.Status, func(e SpellStatus) int32 { return int32(e.hideLeftSelect()) })
+			status = slices.Map(len(room.Status), func(i int) (int32, bool) { return int32(room.Status[i].hideLeftSelect()), true })
 		} else {
-			status = slices.Map(room.Status, func(e SpellStatus) int32 { return int32(e) })
+			status = slices.Map(len(room.Status), func(i int) (int32, bool) { return int32(room.Status[i]), true })
 		}
 		return nil
 	})
@@ -305,7 +304,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 			return errors.New("你不是房主")
 		} else if room.Started {
 			return errors.New("游戏已经开始")
-		} else if slices.Any(room.Players, strings.IsEmpty) {
+		} else if slices.Any(len(room.Players), func(i int) bool { return len(room.Players[i]) == 0 }) {
 			return errors.New("玩家没满")
 		}
 		spells, err = RandSpells(games)

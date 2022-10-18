@@ -3,7 +3,7 @@ module github.com/Touhou-Freshman-Camp/bingo-server
 go 1.19
 
 require (
-	github.com/CuteReimu/goutil v0.0.0-20221013073220-bc1131b53c26
+	github.com/CuteReimu/goutil v0.0.0-20221018044252-a396d9ace6d5
 	github.com/davyxu/cellnet v4.1.0+incompatible
 	github.com/davyxu/golog v0.1.0
 	github.com/dgraph-io/badger/v3 v3.2103.3
@@ -14,7 +14,7 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cast v1.5.0
 	github.com/xuri/excelize/v2 v2.6.1
-	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
+	golang.org/x/time v0.1.0
 	google.golang.org/protobuf v1.28.1
 )
 
@@ -40,7 +40,7 @@ require (
 	github.com/xuri/nfp v0.0.0-20220409054826-5e722a1d9e22 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/crypto v0.0.0-20221012134737-56aed061732a // indirect
-	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b // indirect
-	golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43 // indirect
-	golang.org/x/text v0.3.8 // indirect
+	golang.org/x/net v0.0.0-20221017152216-f25eb7ecb193 // indirect
+	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/text v0.4.0 // indirect
 )
