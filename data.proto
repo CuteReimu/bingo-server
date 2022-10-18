@@ -26,6 +26,7 @@ message spell {
   string name = 2;
   string rank = 3;
   int32 star = 4;
+  string desc = 5;
 }
 
 enum spell_status {

@@ -41,6 +41,7 @@ func RandSpells(games []string) ([]*Spell, error) {
 							Name: row[3],
 							Rank: row[5],
 							Star: int32(star),
+							Desc: row[4],
 						})
 					}
 					if star == 3 && !inGame {
@@ -49,6 +50,7 @@ func RandSpells(games []string) ([]*Spell, error) {
 							Name: row[3],
 							Rank: row[5],
 							Star: int32(star),
+							Desc: row[4],
 						})
 					}
 				}
