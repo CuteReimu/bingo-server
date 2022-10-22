@@ -19,6 +19,8 @@ message room {
   uint32 countdown = 9; // 倒计时，秒
   repeated spell_status status = 10; // 每个格子的状态
   repeated uint32 score = 11; // 比分
+  bool locked = 12; // 连续多局就需要锁上
+  uint32 need_win = 13; // 需要赢几局才算赢
 }
 
 message spell {

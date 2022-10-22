@@ -46,6 +46,7 @@ func handleResetRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 		for i := range room.Score {
 			room.Score[i] = 0
 		}
+		room.Locked = false
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -219,6 +220,9 @@ func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]in
 		}
 		if winnerIdx >= 0 {
 			room.Score[winnerIdx]++
+			if room.Score[winnerIdx] >= room.NeedWin {
+				room.Locked = false
+			}
 		}
 		room.Started = false
 		room.Spells = nil
@@ -318,6 +322,16 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 	if len(games) > 99 {
 		return errors.New("选择的作品数太多")
 	}
+	needWin, err := cast.ToUint32E(data["need_win"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if needWin > 99 {
+		return errors.New("需要胜场的数值不正确")
+	}
+	if needWin == 0 {
+		needWin = 1
+	}
 	startTime := time.Now().UnixMilli()
 	var spells []*Spell
 	err = db.Update(func(txn *badger.Txn) error {
@@ -349,6 +363,8 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 		room.Countdown = countdown
 		room.GameTime = gameTime
 		room.Status = make([]SpellStatus, len(spells))
+		room.NeedWin = needWin
+		room.Locked = true
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -448,9 +464,8 @@ func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 		if room.GetStarted() {
 			return errors.New("比赛已经开始了，不能退出")
 		}
-		if room.Host != player.Token && slices.All(len(room.Score), func(i int) bool { return room.Score[i] != 2 }) &&
-			slices.Any(len(room.Score), func(i int) bool { return room.Score[i] != 0 }) {
-			return errors.New("bo3比赛没结束，不能退出")
+		if room.Host != player.Token && room.Locked {
+			return errors.New("连续比赛没结束，不能退出")
 		}
 		player.RoomId = ""
 		player.Name = ""
