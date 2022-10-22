@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/CuteReimu/goutil/slices"
 	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
 	"github.com/davyxu/cellnet"
 	"github.com/dgraph-io/badger/v3"
@@ -93,6 +94,10 @@ func (playerConn *PlayerConn) OnDisconnect() {
 			return err
 		}
 		if room.GetStarted() {
+			return nil
+		}
+		if slices.All(len(room.Score), func(i int) bool { return room.Score[i] != 2 }) &&
+			slices.Any(len(room.Score), func(i int) bool { return room.Score[i] != 0 }) {
 			return nil
 		}
 		if room.Host == player.Token {

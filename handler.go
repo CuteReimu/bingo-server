@@ -416,6 +416,10 @@ func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 		if room.GetStarted() {
 			return errors.New("比赛已经开始了，不能退出")
 		}
+		if room.Host != player.Token && slices.All(len(room.Score), func(i int) bool { return room.Score[i] != 2 }) &&
+			slices.Any(len(room.Score), func(i int) bool { return room.Score[i] != 0 }) {
+			return errors.New("bo3比赛没结束，不能退出")
+		}
 		player.RoomId = ""
 		player.Name = ""
 		if room.Host == player.Token {
