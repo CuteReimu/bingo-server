@@ -21,6 +21,38 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"get_spells_cs":       handleGetSpells,
 	"stop_game_cs":        handleStopGame,
 	"update_spell_cs":     handleUpdateSpell,
+	"reset_room_cs":       handleResetRoom,
+}
+
+func handleResetRoom(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+	err := db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Host != playerConn.token {
+			return errors.New("你不是房主")
+		}
+		if room.Started {
+			return errors.New("游戏已开始，不能重置房间")
+		}
+		for i := range room.Score {
+			room.Score[i] = 0
+		}
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.NotifyPlayerInfo(protoName)
+	return nil
 }
 
 func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
