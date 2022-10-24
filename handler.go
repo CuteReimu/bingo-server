@@ -1,12 +1,13 @@
 package main
 
 import (
+	"time"
+
 	"github.com/CuteReimu/goutil/slices"
 	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
-	"time"
 )
 
 var handlers = map[string]func(player *PlayerConn, protoName string, result map[string]interface{}) error{
@@ -248,6 +249,7 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 	var startTime int64
 	var gameTime, countdown uint32
 	var status []int32
+	var needWin uint32
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -267,6 +269,7 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 		startTime = room.StartMs
 		countdown = room.Countdown
 		gameTime = room.GameTime
+		needWin = room.NeedWin
 		if playerConn.token == room.Players[0] {
 			status = slices.Map(len(room.Status), func(i int) (int32, bool) { return int32(room.Status[i].hideRightSelect()), true })
 		} else if playerConn.token == room.Players[1] {
@@ -288,6 +291,7 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 			"start_time": startTime,
 			"game_time":  gameTime,
 			"countdown":  countdown,
+			"need_win":   needWin,
 		},
 	}
 	if len(status) > 0 {
@@ -378,6 +382,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 			"start_time": startTime,
 			"game_time":  gameTime,
 			"countdown":  countdown,
+			"need_win":   needWin,
 		},
 	})
 	return nil
