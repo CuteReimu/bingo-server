@@ -71,6 +71,14 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, []string
 		"host":              host.Name,
 		"names":             players,
 		"change_card_count": room.ChangeCardCount,
+		"started":           room.Started,
+		"score":             room.Score,
+	}
+	if room.TotalPauseMs > 0 {
+		ret["total_pause_ms"] = room.TotalPauseMs
+	}
+	if room.PauseBeginMs > 0 {
+		ret["pause_begin_ms"] = room.PauseBeginMs
 	}
 	return ret, tokens, err
 }

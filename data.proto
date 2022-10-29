@@ -22,6 +22,8 @@ message room {
   bool locked = 12; // 连续多局就需要锁上
   uint32 need_win = 13; // 需要赢几局才算赢
   repeated uint32 change_card_count = 14;
+  int64 total_pause_ms = 15; // 累计暂停时长，毫秒
+  int64 pause_begin_ms = 16; // 开始暂停时刻，毫秒，0表示没暂停
 }
 
 message spell {

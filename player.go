@@ -182,9 +182,6 @@ func (playerConn *PlayerConn) buildPlayerInfo() (*myws.Message, []string, error)
 		if err != nil {
 			return err
 		}
-		message.Data["name"] = player.Name
-		message.Data["started"] = room.Started
-		message.Data["score"] = room.Score
 		return nil
 	})
 	if err != nil {

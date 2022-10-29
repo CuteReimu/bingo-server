@@ -24,6 +24,55 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"update_spell_cs":      handleUpdateSpell,
 	"reset_room_cs":        handleResetRoom,
 	"change_card_count_cs": handleChangeCardCount,
+	"pause_cs":             handlePause,
+}
+
+func handlePause(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+	pause, err := cast.ToBoolE(data["pause"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	now := time.Now().UnixMilli()
+	err = db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Host != playerConn.token {
+			return errors.New("你不是房主")
+		}
+		if !room.Started {
+			return errors.New("游戏还没开始，不能暂停")
+		}
+		if room.StartMs <= now-int64(room.GameTime)*60000-int64(room.Countdown)*1000-room.TotalPauseMs {
+			return errors.New("游戏时间到，不能暂停")
+		}
+		if room.StartMs > now-int64(room.Countdown)*1000 {
+			return errors.New("倒计时还没结束，不能暂停")
+		}
+		if pause {
+			if room.PauseBeginMs != 0 {
+				return nil
+			}
+			room.PauseBeginMs = now
+		} else {
+			room.TotalPauseMs += now - room.PauseBeginMs
+			room.PauseBeginMs = 0
+		}
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.NotifyPlayerInfo(protoName)
+	return nil
 }
 
 func handleChangeCardCount(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
@@ -132,7 +181,10 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		if !room.Started {
 			return errors.New("游戏还没开始")
 		}
-		if room.StartMs <= now-int64(room.GameTime)*60000-int64(room.Countdown)*1000 {
+		if room.PauseBeginMs != 0 && playerConn.token != room.Host {
+			return errors.New("暂停中，不能操作")
+		}
+		if room.StartMs <= now-int64(room.GameTime)*60000-int64(room.Countdown)*1000-room.TotalPauseMs {
 			return errors.New("游戏时间到")
 		}
 		st := room.Status[idx]
@@ -269,6 +321,8 @@ func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]in
 		room.GameTime = 0
 		room.Countdown = 0
 		room.Status = nil
+		room.TotalPauseMs = 0
+		room.PauseBeginMs = 0
 		return SetRoom(txn, room)
 	})
 	if err != nil {
