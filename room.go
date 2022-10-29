@@ -66,10 +66,11 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, []string
 		}
 	}
 	ret := map[string]interface{}{
-		"rid":   room.RoomId,
-		"type":  room.RoomType,
-		"host":  host.Name,
-		"names": players,
+		"rid":               room.RoomId,
+		"type":              room.RoomType,
+		"host":              host.Name,
+		"names":             players,
+		"change_card_count": room.ChangeCardCount,
 	}
 	return ret, tokens, err
 }
