@@ -194,9 +194,6 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		tokens = append(tokens, room.Host)
 		switch playerConn.token {
 		case room.Host:
-			if status == SpellStatus_none && st.isSelectStatus() || status.isSelectStatus() {
-				return errors.New("权限不足")
-			}
 			newStatus = status
 			tokens = append(tokens, room.Players...)
 		case room.Players[0]:
