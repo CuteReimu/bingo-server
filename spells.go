@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func RandSpells(games []string) ([]*Spell, error) {
+func RandSpells(games []string, ranks []string) ([]*Spell, error) {
 	dirEntries, err := os.ReadDir(".")
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -34,7 +34,7 @@ func RandSpells(games []string) ([]*Spell, error) {
 					if err != nil {
 						return nil, errors.WithStack(err)
 					}
-					inGame := slices.Contains(games, strings.TrimSpace(row[1]))
+					inGame := slices.Contains(games, strings.TrimSpace(row[1])) && (ranks == nil || slices.Contains(ranks, strings.TrimSpace(row[5])))
 					if star > 0 && star <= 3 && inGame {
 						spells[star-1] = append(spells[star-1], &Spell{
 							Game: row[1],

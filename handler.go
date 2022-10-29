@@ -326,6 +326,16 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 	if len(games) > 99 {
 		return errors.New("选择的作品数太多")
 	}
+	var ranks []string
+	if dataRanks, ok := data["ranks"]; ok {
+		ranks, err = cast.ToStringSliceE(dataRanks)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if len(ranks) > 6 {
+			return errors.New("选择的难度数太多")
+		}
+	}
 	needWin, err := cast.ToUint32E(data["need_win"])
 	if err != nil {
 		return errors.WithStack(err)
@@ -357,7 +367,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 		} else if slices.Any(len(room.Players), func(i int) bool { return len(room.Players[i]) == 0 }) {
 			return errors.New("玩家没满")
 		}
-		spells, err = RandSpells(games)
+		spells, err = RandSpells(games, ranks)
 		if err != nil {
 			return errors.Wrap(err, "随符卡失败")
 		}

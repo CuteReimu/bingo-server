@@ -122,6 +122,7 @@
 | game_time | int        | 比赛时间长度，分钟         |
 | countdown | int        | 倒计时时长，秒           |
 | games     | Array[str] | 作品代号，和表中所配的相同     |
+| ranks     | Array[str] | 符卡难度代号，和表中所配的相同   |
 | need_win  | int        | 需要赢几场才算赢，例如bo3就发2 |
 
 **请求符卡数据（例如断线重连后请求）: get_spells_cs**
