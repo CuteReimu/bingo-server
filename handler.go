@@ -11,18 +11,53 @@ import (
 )
 
 var handlers = map[string]func(player *PlayerConn, protoName string, result map[string]interface{}) error{
-	"login_cs":            handleLogin,
-	"heart_cs":            handleHeart,
-	"create_room_cs":      handleCreateRoom,
-	"join_room_cs":        handleJoinRoom,
-	"leave_room_cs":       handleLeaveRoom,
-	"update_room_type_cs": handleUpdateRoomType,
-	"update_name_cs":      handleUpdateName,
-	"start_game_cs":       handleStartGame,
-	"get_spells_cs":       handleGetSpells,
-	"stop_game_cs":        handleStopGame,
-	"update_spell_cs":     handleUpdateSpell,
-	"reset_room_cs":       handleResetRoom,
+	"login_cs":             handleLogin,
+	"heart_cs":             handleHeart,
+	"create_room_cs":       handleCreateRoom,
+	"join_room_cs":         handleJoinRoom,
+	"leave_room_cs":        handleLeaveRoom,
+	"update_room_type_cs":  handleUpdateRoomType,
+	"update_name_cs":       handleUpdateName,
+	"start_game_cs":        handleStartGame,
+	"get_spells_cs":        handleGetSpells,
+	"stop_game_cs":         handleStopGame,
+	"update_spell_cs":      handleUpdateSpell,
+	"reset_room_cs":        handleResetRoom,
+	"change_card_count_cs": handleChangeCardCount,
+}
+
+func handleChangeCardCount(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
+	counts, err := cast.ToIntSliceE(data["cnt"])
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if len(counts) != 2 || counts[0] < 0 || counts[1] < 0 || counts[0] > 9999 || counts[1] > 9999 {
+		return errors.New("cnt参数错误")
+	}
+	err = db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Host != playerConn.token {
+			return errors.New("你不是房主")
+		}
+		room.ChangeCardCount[0] = uint32(counts[0])
+		room.ChangeCardCount[1] = uint32(counts[1])
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.NotifyPlayerInfo(protoName)
+	return nil
 }
 
 func handleResetRoom(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
@@ -48,6 +83,9 @@ func handleResetRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 			room.Score[i] = 0
 		}
 		room.Locked = false
+		for i := range room.ChangeCardCount {
+			room.ChangeCardCount[i] = 0
+		}
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -664,11 +702,12 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 			return errors.WithStack(err)
 		}
 		var room = Room{
-			RoomId:   rid,
-			RoomType: roomType,
-			Host:     playerConn.token,
-			Players:  make([]string, 2),
-			Score:    make([]uint32, 2),
+			RoomId:          rid,
+			RoomType:        roomType,
+			Host:            playerConn.token,
+			Players:         make([]string, 2),
+			Score:           make([]uint32, 2),
+			ChangeCardCount: make([]uint32, 2),
 		}
 		player.RoomId = rid
 		player.Name = name
