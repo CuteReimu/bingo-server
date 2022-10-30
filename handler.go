@@ -63,6 +63,9 @@ func handlePause(playerConn *PlayerConn, protoName string, data map[string]inter
 			}
 			room.PauseBeginMs = now
 		} else {
+			if room.PauseBeginMs == 0 {
+				return nil
+			}
 			room.TotalPauseMs += now - room.PauseBeginMs
 			room.PauseBeginMs = 0
 		}
