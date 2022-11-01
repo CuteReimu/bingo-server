@@ -75,7 +75,9 @@ func handlePause(playerConn *PlayerConn, protoName string, data map[string]inter
 	if err != nil {
 		return err
 	}
-	msgData := make(map[string]interface{})
+	msgData := map[string]interface{}{
+		"time": now,
+	}
 	if totalPauseMs > 0 {
 		msgData["total_pause_ms"] = totalPauseMs
 	}
