@@ -1,11 +1,12 @@
 package main
 
 import (
+	"time"
+
 	"github.com/CuteReimu/goutil/slices"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
-	"time"
 )
 
 func GetRoom(txn *badger.Txn, roomId string) (*Room, error) {
@@ -73,12 +74,6 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, []string
 		"change_card_count": room.ChangeCardCount,
 		"started":           room.Started,
 		"score":             room.Score,
-	}
-	if room.TotalPauseMs > 0 {
-		ret["total_pause_ms"] = room.TotalPauseMs
-	}
-	if room.PauseBeginMs > 0 {
-		ret["pause_begin_ms"] = room.PauseBeginMs
 	}
 	return ret, tokens, err
 }

@@ -32,6 +32,7 @@ func handlePause(playerConn *PlayerConn, protoName string, data map[string]inter
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	var totalPauseMs, pauseBeginMs int64
 	now := time.Now().UnixMilli()
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
@@ -69,12 +70,24 @@ func handlePause(playerConn *PlayerConn, protoName string, data map[string]inter
 			room.TotalPauseMs += now - room.PauseBeginMs
 			room.PauseBeginMs = 0
 		}
+		totalPauseMs = room.TotalPauseMs
+		pauseBeginMs = room.PauseBeginMs
 		return SetRoom(txn, room)
 	})
 	if err != nil {
 		return err
 	}
-	playerConn.NotifyPlayerInfo(protoName)
+	msgData := make(map[string]interface{})
+	if totalPauseMs > 0 {
+		msgData["total_pause_ms"] = totalPauseMs
+	}
+	if pauseBeginMs > 0 {
+		msgData["pause_begin_ms"] = pauseBeginMs
+	}
+	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
+		MsgName: "pause_sc",
+		Data:    msgData,
+	})
 	return nil
 }
 
@@ -342,6 +355,7 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 	var gameTime, countdown uint32
 	var status []int32
 	var needWin uint32
+	var totalPauseMs, pauseBeginMs int64
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -362,6 +376,8 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 		countdown = room.Countdown
 		gameTime = room.GameTime
 		needWin = room.NeedWin
+		totalPauseMs = room.TotalPauseMs
+		pauseBeginMs = room.PauseBeginMs
 		if playerConn.token == room.Players[0] {
 			status = slices.Map(len(room.Status), func(i int) (int32, bool) { return int32(room.Status[i].hideRightSelect()), true })
 		} else if playerConn.token == room.Players[1] {
@@ -385,6 +401,12 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 			"countdown":  countdown,
 			"need_win":   needWin,
 		},
+	}
+	if totalPauseMs > 0 {
+		message.Data["total_pause_ms"] = totalPauseMs
+	}
+	if pauseBeginMs > 0 {
+		message.Data["pause_begin_ms"] = pauseBeginMs
 	}
 	if len(status) > 0 {
 		message.Data["status"] = status
