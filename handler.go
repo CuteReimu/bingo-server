@@ -59,16 +59,14 @@ func handlePause(playerConn *PlayerConn, protoName string, data map[string]inter
 			return errors.New("倒计时还没结束，不能暂停")
 		}
 		if pause {
-			if room.PauseBeginMs != 0 {
-				return nil
-			}
-			room.PauseBeginMs = now
-		} else {
 			if room.PauseBeginMs == 0 {
-				return nil
+				room.PauseBeginMs = now
 			}
-			room.TotalPauseMs += now - room.PauseBeginMs
-			room.PauseBeginMs = 0
+		} else {
+			if room.PauseBeginMs != 0 {
+				room.TotalPauseMs += now - room.PauseBeginMs
+				room.PauseBeginMs = 0
+			}
 		}
 		totalPauseMs = room.TotalPauseMs
 		pauseBeginMs = room.PauseBeginMs
