@@ -6,7 +6,7 @@ require (
 	github.com/CuteReimu/goutil v0.0.0-20221028065202-e42dc9183286
 	github.com/davyxu/cellnet v4.1.0+incompatible
 	github.com/davyxu/golog v0.1.0
-	github.com/dgraph-io/badger/v3 v3.2103.3
+	github.com/dgraph-io/badger/v3 v3.2103.4
 	github.com/gorilla/websocket v1.5.0
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
 	github.com/pkg/errors v0.9.1
