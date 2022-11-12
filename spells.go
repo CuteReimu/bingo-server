@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/CuteReimu/goutil/slices"
 	"github.com/pkg/errors"
 	"github.com/xuri/excelize/v2"
@@ -11,7 +12,10 @@ import (
 	"time"
 )
 
-func RandSpells(games []string, ranks []string) ([]*Spell, error) {
+func RandSpells(games []string, ranks []string, spellCounts [3]int) ([]*Spell, error) {
+	if spellCounts[0]+spellCounts[1] != 20 || spellCounts[2] != 5 {
+		panic(fmt.Sprint("错误的符卡数量", spellCounts[0]+spellCounts[1]+spellCounts[2]))
+	}
 	dirEntries, err := os.ReadDir(".")
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -57,19 +61,19 @@ func RandSpells(games []string, ranks []string) ([]*Spell, error) {
 			}
 		}
 	}
-	if len(spells[0]) < 10 || len(spells[1]) < 10 || len(spells[2])+len(spells[3]) < 5 {
+	if len(spells[0]) < spellCounts[0] || len(spells[1]) < spellCounts[1] || len(spells[2])+len(spells[3]) < spellCounts[2] {
 		return nil, errors.New("符卡数量不足")
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixMilli()))
-	slices.ShuffleN(r, spells[0], 10)
-	slices.ShuffleN(r, spells[1], 10)
-	spells01 := append(spells[0][:10:10], spells[1][:10]...)
+	slices.ShuffleN(r, spells[0], spellCounts[0])
+	slices.ShuffleN(r, spells[1], spellCounts[1])
+	spells01 := append(spells[0][:spellCounts[0]:spellCounts[0]], spells[1][:spellCounts[1]]...)
 	slices.ShuffleN(r, spells01, len(spells01))
-	if len(spells[2]) < 5 {
-		slices.ShuffleN(r, spells[3], 5-len(spells[2]))
-		spells[2] = append(spells[2], spells[3][:5-len(spells[2])]...)
+	if len(spells[2]) < spellCounts[2] {
+		slices.ShuffleN(r, spells[3], spellCounts[2]-len(spells[2]))
+		spells[2] = append(spells[2], spells[3][:spellCounts[2]-len(spells[2])]...)
 	}
-	slices.ShuffleN(r, spells[2], 5)
+	slices.ShuffleN(r, spells[2], spellCounts[2])
 	idx := []int{0, 1, 3, 4}
 	slices.ShuffleN(r, idx, len(idx))
 	result := make([]*Spell, 25)
@@ -98,6 +102,10 @@ func (x SpellStatus) isLeftStatus() bool {
 
 func (x SpellStatus) isRightStatus() bool {
 	return x == SpellStatus_right_select || x == SpellStatus_right_get
+}
+
+func (x SpellStatus) isGetStatus() bool {
+	return x == SpellStatus_left_get || x == SpellStatus_right_get
 }
 
 func (x SpellStatus) hideLeftSelect() SpellStatus {

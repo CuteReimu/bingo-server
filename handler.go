@@ -46,6 +46,9 @@ func handlePause(playerConn *PlayerConn, protoName string, data map[string]inter
 		if err != nil {
 			return err
 		}
+		if !room.Type().CanPause() {
+			return errors.New("不支持暂停的游戏类型")
+		}
 		if room.Host != playerConn.token {
 			return errors.New("你不是房主")
 		}
@@ -176,12 +179,12 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		return errors.New("status不合法")
 	}
 	status := SpellStatus(statusVal)
-	if status == SpellStatus_banned || status == SpellStatus_both_select {
+	if status == SpellStatus_both_select {
 		return errors.New("status不合法")
 	}
 	var newStatus SpellStatus
 	var tokens []string
-	now := time.Now().UnixMilli()
+	var whoseTurn, banPick int32
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -197,94 +200,40 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		if !room.Started {
 			return errors.New("游戏还没开始")
 		}
-		if room.PauseBeginMs != 0 && playerConn.token != room.Host {
-			return errors.New("暂停中，不能操作")
-		}
-		if room.StartMs <= now-int64(room.GameTime)*60000-int64(room.Countdown)*1000-room.TotalPauseMs {
-			return errors.New("游戏时间到")
-		}
-		st := room.Status[idx]
-		if room.StartMs > now-int64(room.Countdown)*1000 && !status.isSelectStatus() && !(status == SpellStatus_none && st.isSelectStatus()) {
-			return errors.New("倒计时还没结束")
-		}
-		tokens = append(tokens, room.Host)
-		switch playerConn.token {
-		case room.Host:
-			newStatus = status
-			tokens = append(tokens, room.Players...)
-		case room.Players[0]:
-			if status.isRightStatus() || st == SpellStatus_left_get && status != SpellStatus_left_get {
-				return errors.New("权限不足")
-			}
-			if st == SpellStatus_right_get {
-				return errors.New("对方已经打完")
-			}
-			switch status {
-			case SpellStatus_left_get:
-				newStatus = status
-			case SpellStatus_left_select:
-				if st == SpellStatus_right_select {
-					newStatus = SpellStatus_both_select
-				} else {
-					newStatus = status
-				}
-			case SpellStatus_none:
-				if st == SpellStatus_both_select {
-					newStatus = SpellStatus_right_select
-				} else {
-					newStatus = status
-				}
-			}
-			tokens = append(tokens, room.Players[0])
-			if status != SpellStatus_left_select && status != SpellStatus_none {
-				tokens = append(tokens, room.Players[1])
-			}
-		case room.Players[1]:
-			if status.isLeftStatus() || st == SpellStatus_right_get && status != SpellStatus_right_get {
-				return errors.New("权限不足")
-			}
-			if st == SpellStatus_left_get {
-				return errors.New("对方已经打完")
-			}
-			switch status {
-			case SpellStatus_right_get:
-				newStatus = status
-			case SpellStatus_right_select:
-				if st == SpellStatus_left_select {
-					newStatus = SpellStatus_both_select
-				} else {
-					newStatus = status
-				}
-			case SpellStatus_none:
-				if st == SpellStatus_both_select {
-					newStatus = SpellStatus_left_select
-				} else {
-					newStatus = status
-				}
-			}
-			tokens = append(tokens, room.Players[1])
-			if status != SpellStatus_right_select && status != SpellStatus_none {
-				tokens = append(tokens, room.Players[0])
-			}
+		tokens, newStatus, err = room.Type().HandleUpdateSpell(playerConn, idx, status)
+		if err != nil {
+			return err
 		}
 		room.Status[idx] = newStatus
+		if room.BpData != nil {
+			whoseTurn = room.BpData.WhoseTurn
+			banPick = room.BpData.BanPick
+		}
 		return SetRoom(txn, room)
 	})
 	if err != nil {
 		return err
 	}
+	message := &myws.Message{
+		MsgName: "update_spell_sc",
+		Data: map[string]interface{}{
+			"idx":    idx,
+			"status": int32(newStatus),
+		},
+	}
+	if whoseTurn > 0 {
+		message.Data["whose_turn"] = whoseTurn
+	}
+	if banPick > 0 {
+		message.Data["ban_pick"] = banPick
+	}
 	for _, token := range tokens {
 		if len(token) > 0 {
 			if conn, ok := tokenConnMap[token]; ok {
-				message := &myws.Message{
-					MsgName: "update_spell_sc",
-					Data: map[string]interface{}{
-						"idx":    idx,
-						"status": int32(newStatus),
-					},
-				}
 				if token == playerConn.token {
 					message.Reply = protoName
+				} else {
+					message.Reply = ""
 				}
 				conn.Send(message)
 			}
@@ -327,6 +276,7 @@ func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]in
 			if room.Score[winnerIdx] >= room.NeedWin {
 				room.Locked = false
 			}
+			room.LastWinner = winnerIdx + 1
 		}
 		room.Started = false
 		room.Spells = nil
@@ -336,6 +286,7 @@ func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]in
 		room.Status = nil
 		room.TotalPauseMs = 0
 		room.PauseBeginMs = 0
+		room.BpData = nil
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -356,6 +307,7 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 	var status []int32
 	var needWin uint32
 	var totalPauseMs, pauseBeginMs int64
+	var whoseTurn, banPick int32
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -385,6 +337,13 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 		} else {
 			status = slices.Map(len(room.Status), func(i int) (int32, bool) { return int32(room.Status[i]), true })
 		}
+		if room.BpData != nil {
+			whoseTurn = room.BpData.WhoseTurn
+			banPick = room.BpData.BanPick
+		}
+		if roomType, ok := room.Type().(interface{ GetWhoseTurnAndBanPick() (int32, int32) }); ok {
+			whoseTurn, banPick = roomType.GetWhoseTurnAndBanPick()
+		}
 		return nil
 	})
 	if err != nil {
@@ -410,6 +369,12 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 	}
 	if len(status) > 0 {
 		message.Data["status"] = status
+	}
+	if whoseTurn > 0 {
+		message.Data["whose_turn"] = whoseTurn
+	}
+	if banPick > 0 {
+		message.Data["ban_pick"] = banPick
 	}
 	playerConn.Send(message)
 	return nil
@@ -462,6 +427,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 	}
 	startTime := time.Now().UnixMilli()
 	var spells []*Spell
+	var whoseTurn, banPick int32
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -481,7 +447,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 		} else if slices.Any(len(room.Players), func(i int) bool { return len(room.Players[i]) == 0 }) {
 			return errors.New("玩家没满")
 		}
-		spells, err = RandSpells(games, ranks)
+		spells, err = RandSpells(games, ranks, room.Type().CardCount())
 		if err != nil {
 			return errors.Wrap(err, "随符卡失败")
 		}
@@ -493,12 +459,19 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 		room.Status = make([]SpellStatus, len(spells))
 		room.NeedWin = needWin
 		room.Locked = true
+		if roomType, ok := room.Type().(RoomStartHandler); ok {
+			roomType.OnStart()
+		}
+		if room.BpData != nil {
+			whoseTurn = room.BpData.WhoseTurn
+			banPick = room.BpData.BanPick
+		}
 		return SetRoom(txn, room)
 	})
 	if err != nil {
 		return err
 	}
-	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
+	message := &myws.Message{
 		MsgName: "spell_list_sc",
 		Data: map[string]interface{}{
 			"spells":     spells,
@@ -508,7 +481,14 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 			"countdown":  countdown,
 			"need_win":   needWin,
 		},
-	})
+	}
+	if whoseTurn > 0 {
+		message.Data["whose_turn"] = whoseTurn
+	}
+	if banPick > 0 {
+		message.Data["ban_pick"] = banPick
+	}
+	playerConn.NotifyPlayersInRoom(protoName, message)
 	return nil
 }
 
@@ -545,6 +525,9 @@ func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data map[str
 	roomType, err := cast.ToInt32E(data["type"])
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	if roomType < 1 || roomType > 3 {
+		return errors.New("不支持的游戏类型")
 	}
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
@@ -756,6 +739,9 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 	roomType, err := cast.ToInt32E(data["type"])
 	if err != nil {
 		return errors.WithStack(err)
+	}
+	if roomType < 1 || roomType > 3 {
+		return errors.New("不支持的游戏类型")
 	}
 	err = db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)

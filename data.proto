@@ -24,6 +24,15 @@ message room {
   repeated uint32 change_card_count = 14;
   int64 total_pause_ms = 15; // 累计暂停时长，毫秒
   int64 pause_begin_ms = 16; // 开始暂停时刻，毫秒，0表示没暂停
+  int32 last_winner = 17; // 上一场是谁赢，1或2
+  bp_data bp_data = 18;
+}
+
+message bp_data {
+  int32 whoseTurn = 1; // 用于bp赛
+  int32 banPick = 2; // 用于bp赛
+  uint32 round = 3; // 用于bp赛
+  bool lessThan4 = 4; // 用于bp赛
 }
 
 message spell {
