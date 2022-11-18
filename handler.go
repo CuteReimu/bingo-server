@@ -217,15 +217,11 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 	message := &myws.Message{
 		MsgName: "update_spell_sc",
 		Data: map[string]interface{}{
-			"idx":    idx,
-			"status": int32(newStatus),
+			"idx":        idx,
+			"status":     int32(newStatus),
+			"whose_turn": whoseTurn,
+			"ban_pick":   banPick,
 		},
-	}
-	if whoseTurn > 0 {
-		message.Data["whose_turn"] = whoseTurn
-	}
-	if banPick > 0 {
-		message.Data["ban_pick"] = banPick
 	}
 	for _, token := range tokens {
 		if len(token) > 0 {
@@ -359,6 +355,8 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 			"game_time":  gameTime,
 			"countdown":  countdown,
 			"need_win":   needWin,
+			"whose_turn": whoseTurn,
+			"ban_pick":   banPick,
 		},
 	}
 	if totalPauseMs > 0 {
@@ -369,12 +367,6 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 	}
 	if len(status) > 0 {
 		message.Data["status"] = status
-	}
-	if whoseTurn > 0 {
-		message.Data["whose_turn"] = whoseTurn
-	}
-	if banPick > 0 {
-		message.Data["ban_pick"] = banPick
 	}
 	playerConn.Send(message)
 	return nil
@@ -480,13 +472,9 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 			"game_time":  gameTime,
 			"countdown":  countdown,
 			"need_win":   needWin,
+			"whose_turn": whoseTurn,
+			"ban_pick":   banPick,
 		},
-	}
-	if whoseTurn > 0 {
-		message.Data["whose_turn"] = whoseTurn
-	}
-	if banPick > 0 {
-		message.Data["ban_pick"] = banPick
 	}
 	playerConn.NotifyPlayersInRoom(protoName, message)
 	return nil
