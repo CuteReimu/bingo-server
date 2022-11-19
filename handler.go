@@ -214,18 +214,18 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 	if err != nil {
 		return err
 	}
-	message := &myws.Message{
-		MsgName: "update_spell_sc",
-		Data: map[string]interface{}{
-			"idx":        idx,
-			"status":     int32(newStatus),
-			"whose_turn": whoseTurn,
-			"ban_pick":   banPick,
-		},
-	}
 	for _, token := range tokens {
 		if len(token) > 0 {
 			if conn, ok := tokenConnMap[token]; ok {
+				message := &myws.Message{
+					MsgName: "update_spell_sc",
+					Data: map[string]interface{}{
+						"idx":        idx,
+						"status":     int32(newStatus),
+						"whose_turn": whoseTurn,
+						"ban_pick":   banPick,
+					},
+				}
 				if token == playerConn.token {
 					message.Reply = protoName
 				} else {
