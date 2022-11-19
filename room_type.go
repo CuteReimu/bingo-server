@@ -11,6 +11,12 @@ type RoomStartHandler interface {
 	OnStart()
 }
 
+type RoomUndoHandler interface {
+	OnStart()
+	SaveSnapshot(room *Room, idx uint32)
+	HandleUndo(room *Room) (idx uint32, err error)
+}
+
 type RoomType interface {
 	CanPause() bool
 	CardCount() [3]int
@@ -232,4 +238,29 @@ func (r RoomTypeBP) nextRound() {
 			bp.WhoseTurn = 1 - bp.WhoseTurn
 		}
 	}
+}
+
+func (r RoomTypeBP) SaveSnapshot(room *Room, idx uint32) {
+	room.BpData.Snapshots = append(room.BpData.Snapshots, &Snapshot{
+		Idx:       idx,
+		Status:    room.Status[idx],
+		WhoseTurn: room.BpData.WhoseTurn,
+		BanPick:   room.BpData.BanPick,
+		Round:     room.BpData.Round,
+		LessThan4: room.BpData.LessThan4,
+	})
+}
+
+func (r RoomTypeBP) HandleUndo(room *Room) (idx uint32, err error) {
+	if len(room.BpData.Snapshots) == 0 {
+		return 0, errors.New("当前是第一回合，不能再撤销了")
+	}
+	snapshot := room.BpData.Snapshots[len(room.BpData.Snapshots)-1]
+	room.Status[idx] = snapshot.Status
+	room.BpData.WhoseTurn = snapshot.WhoseTurn
+	room.BpData.BanPick = snapshot.BanPick
+	room.BpData.Round = snapshot.Round
+	room.BpData.LessThan4 = snapshot.LessThan4
+	room.BpData.Snapshots = room.BpData.Snapshots[:len(room.BpData.Snapshots)-1]
+	return idx, nil
 }

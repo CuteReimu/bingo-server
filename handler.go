@@ -25,6 +25,56 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"reset_room_cs":        handleResetRoom,
 	"change_card_count_cs": handleChangeCardCount,
 	"pause_cs":             handlePause,
+	"undo_cs":              handleUndo,
+}
+
+func handleUndo(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+	var idx uint32
+	var newStatus SpellStatus
+	var whoseTurn, banPick int32
+	err := db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, playerConn.token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Host != playerConn.token {
+			return errors.New("没有权限")
+		}
+		if r, ok := room.Type().(RoomUndoHandler); !ok {
+			return errors.New("不支持撤销的游戏类型")
+		} else {
+			idx, err = r.HandleUndo(room)
+			if err != nil {
+				return err
+			}
+		}
+		newStatus = room.Status[idx]
+		if room.BpData != nil {
+			whoseTurn = room.BpData.WhoseTurn
+			banPick = room.BpData.BanPick
+		}
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
+		MsgName: "update_spell_sc",
+		Data: map[string]interface{}{
+			"idx":        idx,
+			"status":     int32(newStatus),
+			"whose_turn": whoseTurn,
+			"ban_pick":   banPick,
+		},
+	})
+	return nil
 }
 
 func handlePause(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
@@ -203,6 +253,9 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		tokens, newStatus, err = room.Type().HandleUpdateSpell(playerConn, idx, status)
 		if err != nil {
 			return err
+		}
+		if r, ok := room.Type().(RoomUndoHandler); ok {
+			r.SaveSnapshot(room, idx)
 		}
 		room.Status[idx] = newStatus
 		if room.BpData != nil {
