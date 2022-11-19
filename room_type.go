@@ -33,7 +33,7 @@ type RoomTypeNormal struct {
 }
 
 func (r RoomTypeNormal) CanPause() bool {
-	return false
+	return true
 }
 
 func (r RoomTypeNormal) CardCount() [3]int {
@@ -124,7 +124,7 @@ type RoomTypeBP struct {
 }
 
 func (r RoomTypeBP) CanPause() bool {
-	return true
+	return false
 }
 
 func (r RoomTypeBP) OnStart() {
