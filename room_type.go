@@ -13,8 +13,8 @@ type RoomStartHandler interface {
 
 type RoomUndoHandler interface {
 	OnStart()
-	SaveSnapshot(room *Room, idx uint32)
-	HandleUndo(room *Room) (idx uint32, err error)
+	SaveSnapshot(idx uint32)
+	HandleUndo() (idx uint32, err error)
 }
 
 type RoomType interface {
@@ -240,7 +240,8 @@ func (r RoomTypeBP) nextRound() {
 	}
 }
 
-func (r RoomTypeBP) SaveSnapshot(room *Room, idx uint32) {
+func (r RoomTypeBP) SaveSnapshot(idx uint32) {
+	room := r.room
 	room.BpData.Snapshots = append(room.BpData.Snapshots, &Snapshot{
 		Idx:       idx,
 		Status:    room.Status[idx],
@@ -251,7 +252,8 @@ func (r RoomTypeBP) SaveSnapshot(room *Room, idx uint32) {
 	})
 }
 
-func (r RoomTypeBP) HandleUndo(room *Room) (idx uint32, err error) {
+func (r RoomTypeBP) HandleUndo() (idx uint32, err error) {
+	room := r.room
 	if len(room.BpData.Snapshots) == 0 {
 		return 0, errors.New("当前是第一回合，不能再撤销了")
 	}

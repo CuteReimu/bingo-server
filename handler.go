@@ -50,7 +50,7 @@ func handleUndo(playerConn *PlayerConn, protoName string, _ map[string]interface
 		if r, ok := room.Type().(RoomUndoHandler); !ok {
 			return errors.New("不支持撤销的游戏类型")
 		} else {
-			idx, err = r.HandleUndo(room)
+			idx, err = r.HandleUndo()
 			if err != nil {
 				return err
 			}
@@ -250,12 +250,12 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		if !room.Started {
 			return errors.New("游戏还没开始")
 		}
+		if r, ok := room.Type().(RoomUndoHandler); ok {
+			r.SaveSnapshot(idx)
+		}
 		tokens, newStatus, err = room.Type().HandleUpdateSpell(playerConn, idx, status)
 		if err != nil {
 			return err
-		}
-		if r, ok := room.Type().(RoomUndoHandler); ok {
-			r.SaveSnapshot(room, idx)
 		}
 		room.Status[idx] = newStatus
 		if room.BpData != nil {
