@@ -258,11 +258,12 @@ func (r RoomTypeBP) HandleUndo() (idx uint32, err error) {
 		return 0, errors.New("当前是第一回合，不能再撤销了")
 	}
 	snapshot := room.BpData.Snapshots[len(room.BpData.Snapshots)-1]
+	idx = snapshot.Idx
 	room.Status[idx] = snapshot.Status
 	room.BpData.WhoseTurn = snapshot.WhoseTurn
 	room.BpData.BanPick = snapshot.BanPick
 	room.BpData.Round = snapshot.Round
 	room.BpData.LessThan4 = snapshot.LessThan4
 	room.BpData.Snapshots = room.BpData.Snapshots[:len(room.BpData.Snapshots)-1]
-	return idx, nil
+	return
 }
