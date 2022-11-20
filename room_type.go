@@ -11,10 +11,9 @@ type RoomStartHandler interface {
 	OnStart()
 }
 
-type RoomUndoHandler interface {
+type RoomNextRoundHandler interface {
 	OnStart()
-	SaveSnapshot(idx uint32)
-	HandleUndo() (idx uint32, err error)
+	HandleNextRound() error
 }
 
 type RoomType interface {
@@ -155,10 +154,6 @@ func (r RoomTypeBP) HandleUpdateSpell(playerConn *PlayerConn, idx uint32, status
 	room := r.room
 	st := room.Status[idx]
 	switch playerConn.token {
-	case room.Host:
-		if st.isSelectStatus() && status != SpellStatus_banned {
-			r.nextRound()
-		}
 	case room.Players[0]:
 		if room.BpData.WhoseTurn != 0 {
 			return nil, st, errors.New("不是你的回合")
@@ -190,6 +185,14 @@ func (r RoomTypeBP) HandleUpdateSpell(playerConn *PlayerConn, idx uint32, status
 	return
 }
 
+func (r RoomTypeBP) HandleNextRound() error {
+	if r.room.BpData.BanPick != 2 {
+		return errors.New("现在不是这个操作的时候")
+	}
+	r.nextRound()
+	return nil
+}
+
 func (r RoomTypeBP) nextRound() {
 	bp := r.room.BpData
 	bp.Round++
@@ -204,66 +207,58 @@ func (r RoomTypeBP) nextRound() {
 	case 4:
 	case 5:
 		bp.WhoseTurn = 1 - bp.WhoseTurn
-		bp.BanPick = 1
+		bp.BanPick = 2
 	case 6:
-		bp.WhoseTurn = 1 - bp.WhoseTurn
+		bp.BanPick = 1
 	case 7:
+		bp.WhoseTurn = 1 - bp.WhoseTurn
 	case 8:
+	case 9:
 		bp.WhoseTurn = 1 - bp.WhoseTurn
 		bp.BanPick = 0
-	case 9:
 	case 10:
-		bp.WhoseTurn = 1 - bp.WhoseTurn
 	case 11:
 		bp.WhoseTurn = 1 - bp.WhoseTurn
-		bp.BanPick = 1
 	case 12:
-	case 13:
 		bp.WhoseTurn = 1 - bp.WhoseTurn
+		bp.BanPick = 2
+	case 13:
+		bp.BanPick = 1
 	case 14:
+	case 15:
+		bp.WhoseTurn = 1 - bp.WhoseTurn
+	case 16:
 		bp.BanPick = 0
 	default:
-		if !bp.LessThan4 && bp.Round%4 == 2 {
-			count := 0
-			for _, status := range r.room.Status {
-				if status.isGetStatus() {
-					count++
+		count := 0
+		for _, status := range r.room.Status {
+			if status == SpellStatus_none {
+				count++
+			}
+		}
+		if !bp.LessThan4 && bp.Round%5 == 1 && 25-count <= 4 {
+			bp.LessThan4 = true
+		}
+		if bp.LessThan4 {
+			if bp.BanPick == 2 {
+				bp.BanPick = 0
+			} else {
+				if count == 1 {
+					bp.BanPick = 2
 				}
+				bp.WhoseTurn = 1 - bp.WhoseTurn
 			}
-			if 25-count < 4 {
-				bp.LessThan4 = true
+		} else {
+			switch bp.Round % 5 {
+			case 0:
+				bp.WhoseTurn = 1 - bp.WhoseTurn
+				bp.BanPick = 2
+			case 1:
+				bp.WhoseTurn = 1 - bp.WhoseTurn
+				bp.BanPick = 0
+			case 3:
+				bp.WhoseTurn = 1 - bp.WhoseTurn
 			}
 		}
-		if bp.LessThan4 || bp.Round%4 == 0 {
-			bp.WhoseTurn = 1 - bp.WhoseTurn
-		}
 	}
-}
-
-func (r RoomTypeBP) SaveSnapshot(idx uint32) {
-	room := r.room
-	room.BpData.Snapshots = append(room.BpData.Snapshots, &Snapshot{
-		Idx:       idx,
-		Status:    room.Status[idx],
-		WhoseTurn: room.BpData.WhoseTurn,
-		BanPick:   room.BpData.BanPick,
-		Round:     room.BpData.Round,
-		LessThan4: room.BpData.LessThan4,
-	})
-}
-
-func (r RoomTypeBP) HandleUndo() (idx uint32, err error) {
-	room := r.room
-	if len(room.BpData.Snapshots) == 0 {
-		return 0, errors.New("当前是第一回合，不能再撤销了")
-	}
-	snapshot := room.BpData.Snapshots[len(room.BpData.Snapshots)-1]
-	idx = snapshot.Idx
-	room.Status[idx] = snapshot.Status
-	room.BpData.WhoseTurn = snapshot.WhoseTurn
-	room.BpData.BanPick = snapshot.BanPick
-	room.BpData.Round = snapshot.Round
-	room.BpData.LessThan4 = snapshot.LessThan4
-	room.BpData.Snapshots = room.BpData.Snapshots[:len(room.BpData.Snapshots)-1]
-	return
 }

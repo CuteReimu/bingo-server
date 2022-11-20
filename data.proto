@@ -33,16 +33,6 @@ message bp_data {
   int32 banPick = 2; // 用于bp赛
   uint32 round = 3; // 用于bp赛
   bool lessThan4 = 4; // 用于bp赛
-  repeated snapshot snapshots = 5; // 用于撤回上一步
-}
-
-message snapshot {
-  uint32 idx = 1;
-  spell_status status = 2;
-  int32 whoseTurn = 3;
-  int32 banPick = 4;
-  uint32 round = 5; // 用于bp赛
-  bool lessThan4 = 6; // 用于bp赛
 }
 
 message spell {

@@ -25,12 +25,10 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"reset_room_cs":        handleResetRoom,
 	"change_card_count_cs": handleChangeCardCount,
 	"pause_cs":             handlePause,
-	"undo_cs":              handleUndo,
+	"next_round_cs":        handleNextRound,
 }
 
-func handleUndo(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
-	var idx uint32
-	var newStatus SpellStatus
+func handleNextRound(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
 	var whoseTurn, banPick int32
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
@@ -47,15 +45,14 @@ func handleUndo(playerConn *PlayerConn, protoName string, _ map[string]interface
 		if room.Host != playerConn.token {
 			return errors.New("没有权限")
 		}
-		if r, ok := room.Type().(RoomUndoHandler); !ok {
-			return errors.New("不支持撤销的游戏类型")
+		if r, ok := room.Type().(RoomNextRoundHandler); !ok {
+			return errors.New("不支持下一回合的游戏类型")
 		} else {
-			idx, err = r.HandleUndo()
+			err = r.HandleNextRound()
 			if err != nil {
 				return err
 			}
 		}
-		newStatus = room.Status[idx]
 		if room.BpData != nil {
 			whoseTurn = room.BpData.WhoseTurn
 			banPick = room.BpData.BanPick
@@ -66,10 +63,8 @@ func handleUndo(playerConn *PlayerConn, protoName string, _ map[string]interface
 		return err
 	}
 	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
-		MsgName: "update_spell_sc",
+		MsgName: "next_round_sc",
 		Data: map[string]interface{}{
-			"idx":        idx,
-			"status":     int32(newStatus),
 			"whose_turn": whoseTurn,
 			"ban_pick":   banPick,
 		},
@@ -249,9 +244,6 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		}
 		if !room.Started {
 			return errors.New("游戏还没开始")
-		}
-		if r, ok := room.Type().(RoomUndoHandler); ok {
-			r.SaveSnapshot(idx)
 		}
 		tokens, newStatus, err = room.Type().HandleUpdateSpell(playerConn, idx, status)
 		if err != nil {
