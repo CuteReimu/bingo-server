@@ -139,7 +139,7 @@ func handlePause(playerConn *PlayerConn, protoName string, data interface{}) err
 
 func handleChangeCardCount(playerConn *PlayerConn, protoName string, data interface{}) error {
 	counts := data.(*ChangeCardCountCs).Counts
-	if len(counts) != 2 || counts[0] < 0 || counts[1] < 0 || counts[0] > 9999 || counts[1] > 9999 {
+	if len(counts) != 2 || counts[0] > 9999 || counts[1] > 9999 {
 		return errors.New("cnt参数错误")
 	}
 	err := db.Update(func(txn *badger.Txn) error {
