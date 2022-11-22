@@ -7,10 +7,9 @@ import (
 	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
-	"github.com/spf13/cast"
 )
 
-var handlers = map[string]func(player *PlayerConn, protoName string, result map[string]interface{}) error{
+var handlers = map[string]func(player *PlayerConn, protoName string, result interface{}) error{
 	"login_cs":             handleLogin,
 	"heart_cs":             handleHeart,
 	"create_room_cs":       handleCreateRoom,
@@ -28,7 +27,7 @@ var handlers = map[string]func(player *PlayerConn, protoName string, result map[
 	"next_round_cs":        handleNextRound,
 }
 
-func handleNextRound(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+func handleNextRound(playerConn *PlayerConn, protoName string, _ interface{}) error {
 	var whoseTurn, banPick int32
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
@@ -63,23 +62,19 @@ func handleNextRound(playerConn *PlayerConn, protoName string, _ map[string]inte
 		return err
 	}
 	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
-		MsgName: "next_round_sc",
-		Data: map[string]interface{}{
-			"whose_turn": whoseTurn,
-			"ban_pick":   banPick,
+		Data: &NextRoundSc{
+			WhoseTurn: whoseTurn,
+			BanPick:   banPick,
 		},
 	})
 	return nil
 }
 
-func handlePause(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	pause, err := cast.ToBoolE(data["pause"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func handlePause(playerConn *PlayerConn, protoName string, data interface{}) error {
+	pause := data.(*PauseCs).Pause
 	var totalPauseMs, pauseBeginMs int64
 	now := time.Now().UnixMilli()
-	err = db.Update(func(txn *badger.Txn) error {
+	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
@@ -133,21 +128,21 @@ func handlePause(playerConn *PlayerConn, protoName string, data map[string]inter
 		msgData["pause_begin_ms"] = pauseBeginMs
 	}
 	playerConn.NotifyPlayersInRoom(protoName, &myws.Message{
-		MsgName: "pause_sc",
-		Data:    msgData,
+		Data: &PauseSc{
+			Time:         now,
+			TotalPauseMs: totalPauseMs,
+			PauseBeginMs: pauseBeginMs,
+		},
 	})
 	return nil
 }
 
-func handleChangeCardCount(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	counts, err := cast.ToIntSliceE(data["cnt"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func handleChangeCardCount(playerConn *PlayerConn, protoName string, data interface{}) error {
+	counts := data.(*ChangeCardCountCs).Counts
 	if len(counts) != 2 || counts[0] < 0 || counts[1] < 0 || counts[0] > 9999 || counts[1] > 9999 {
 		return errors.New("cnt参数错误")
 	}
-	err = db.Update(func(txn *badger.Txn) error {
+	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
@@ -162,8 +157,8 @@ func handleChangeCardCount(playerConn *PlayerConn, protoName string, data map[st
 		if room.Host != playerConn.token {
 			return errors.New("你不是房主")
 		}
-		room.ChangeCardCount[0] = uint32(counts[0])
-		room.ChangeCardCount[1] = uint32(counts[1])
+		room.ChangeCardCount[0] = counts[0]
+		room.ChangeCardCount[1] = counts[1]
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -173,7 +168,7 @@ func handleChangeCardCount(playerConn *PlayerConn, protoName string, data map[st
 	return nil
 }
 
-func handleResetRoom(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+func handleResetRoom(playerConn *PlayerConn, protoName string, _ interface{}) error {
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
@@ -208,29 +203,20 @@ func handleResetRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 	return nil
 }
 
-func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	idx, err := cast.ToUint32E(data["idx"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func handleUpdateSpell(playerConn *PlayerConn, protoName string, data interface{}) error {
+	data0 := data.(*UpdateSpellCs)
+	idx := data0.Idx
 	if idx >= 25 {
 		return errors.New("idx超出范围")
 	}
-	statusVal, err := cast.ToInt32E(data["status"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	if _, ok := SpellStatus_name[statusVal]; !ok {
-		return errors.New("status不合法")
-	}
-	status := SpellStatus(statusVal)
+	status := data0.Status
 	if status == SpellStatus_both_select {
 		return errors.New("status不合法")
 	}
 	var newStatus SpellStatus
 	var tokens []string
 	var whoseTurn, banPick int32
-	err = db.Update(func(txn *badger.Txn) error {
+	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
@@ -263,12 +249,11 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 		if len(token) > 0 {
 			if conn, ok := tokenConnMap[token]; ok {
 				message := &myws.Message{
-					MsgName: "update_spell_sc",
-					Data: map[string]interface{}{
-						"idx":        idx,
-						"status":     int32(newStatus),
-						"whose_turn": whoseTurn,
-						"ban_pick":   banPick,
+					Data: &UpdateSpellSc{
+						Idx:       idx,
+						Status:    newStatus,
+						WhoseTurn: whoseTurn,
+						BanPick:   banPick,
 					},
 				}
 				if token == playerConn.token {
@@ -283,19 +268,12 @@ func handleUpdateSpell(playerConn *PlayerConn, protoName string, data map[string
 	return nil
 }
 
-func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	var winnerIdx int32 = -1
-	var err error
-	if winner, ok := data["winner"]; ok {
-		winnerIdx, err = cast.ToInt32E(winner)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if winnerIdx != 0 && winnerIdx != 1 {
-			return errors.New("winner不正确")
-		}
+func handleStopGame(playerConn *PlayerConn, protoName string, data interface{}) error {
+	winnerIdx := data.(*StopGameCs).Winner
+	if winnerIdx != -1 && winnerIdx != 0 && winnerIdx != 1 {
+		return errors.New("winner不正确")
 	}
-	err = db.Update(func(txn *badger.Txn) error {
+	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
@@ -336,12 +314,12 @@ func handleStopGame(playerConn *PlayerConn, protoName string, data map[string]in
 	if winnerIdx == -1 {
 		playerConn.NotifyPlayerInfo(protoName)
 	} else {
-		playerConn.NotifyPlayerInfo(protoName, KVPair{"winner", winnerIdx})
+		playerConn.NotifyPlayerInfo(protoName, winnerIdx)
 	}
 	return nil
 }
 
-func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+func handleGetSpells(playerConn *PlayerConn, protoName string, _ interface{}) error {
 	var spells []*Spell
 	var startTime int64
 	var gameTime, countdown uint32
@@ -390,72 +368,47 @@ func handleGetSpells(playerConn *PlayerConn, protoName string, _ map[string]inte
 	if err != nil {
 		return err
 	}
-	message := &myws.Message{
-		MsgName: "spell_list_sc",
-		Reply:   protoName,
-		Data: map[string]interface{}{
-			"spells":     spells,
-			"time":       time.Now().UnixMilli(),
-			"start_time": startTime,
-			"game_time":  gameTime,
-			"countdown":  countdown,
-			"need_win":   needWin,
-			"whose_turn": whoseTurn,
-			"ban_pick":   banPick,
+	playerConn.Send(&myws.Message{
+		Reply: protoName,
+		Data: &SpellListSc{
+			Spells:         spells,
+			Time:           time.Now().UnixMilli(),
+			StartTime:      startTime,
+			GameTime:       gameTime,
+			Countdown:      countdown,
+			NeedWin:        needWin,
+			WhoseTurn:      whoseTurn,
+			BanPick:        banPick,
+			TotalPauseTime: totalPauseMs,
+			PauseBeginMs:   pauseBeginMs,
+			Status:         status,
 		},
-	}
-	if totalPauseMs > 0 {
-		message.Data["total_pause_ms"] = totalPauseMs
-	}
-	if pauseBeginMs > 0 {
-		message.Data["pause_begin_ms"] = pauseBeginMs
-	}
-	if len(status) > 0 {
-		message.Data["status"] = status
-	}
-	playerConn.Send(message)
+	})
 	return nil
 }
 
-func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	gameTime, err := cast.ToUint32E(data["game_time"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func handleStartGame(playerConn *PlayerConn, protoName string, data interface{}) error {
+	data0 := data.(*StartGameCs)
+	gameTime := data0.GameTime
 	if gameTime == 0 {
 		return errors.New("游戏时间不能为0")
 	}
 	if gameTime > 1440 {
 		return errors.New("游戏时间太长")
 	}
-	countdown, err := cast.ToUint32E(data["countdown"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	countdown := data0.Countdown
 	if countdown > 86400 {
 		return errors.New("倒计时太长")
 	}
-	games, err := cast.ToStringSliceE(data["games"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	games := data0.Games
 	if len(games) > 99 {
 		return errors.New("选择的作品数太多")
 	}
-	var ranks []string
-	if dataRanks, ok := data["ranks"]; ok {
-		ranks, err = cast.ToStringSliceE(dataRanks)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if len(ranks) > 6 {
-			return errors.New("选择的难度数太多")
-		}
+	ranks := data0.Ranks
+	if len(ranks) > 6 {
+		return errors.New("选择的难度数太多")
 	}
-	needWin, err := cast.ToUint32E(data["need_win"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	needWin := data0.NeedWin
 	if needWin > 99 {
 		return errors.New("需要胜场的数值不正确")
 	}
@@ -465,7 +418,7 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 	startTime := time.Now().UnixMilli()
 	var spells []*Spell
 	var whoseTurn, banPick int32
-	err = db.Update(func(txn *badger.Txn) error {
+	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
@@ -509,34 +462,30 @@ func handleStartGame(playerConn *PlayerConn, protoName string, data map[string]i
 		return err
 	}
 	message := &myws.Message{
-		MsgName: "spell_list_sc",
-		Data: map[string]interface{}{
-			"spells":     spells,
-			"time":       startTime,
-			"start_time": startTime,
-			"game_time":  gameTime,
-			"countdown":  countdown,
-			"need_win":   needWin,
-			"whose_turn": whoseTurn,
-			"ban_pick":   banPick,
+		Data: &SpellListSc{
+			Spells:    spells,
+			Time:      startTime,
+			StartTime: startTime,
+			GameTime:  gameTime,
+			Countdown: countdown,
+			NeedWin:   needWin,
+			WhoseTurn: whoseTurn,
+			BanPick:   banPick,
 		},
 	}
 	playerConn.NotifyPlayersInRoom(protoName, message)
 	return nil
 }
 
-func handleUpdateName(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	name, err := cast.ToStringE(data["name"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func handleUpdateName(playerConn *PlayerConn, protoName string, data interface{}) error {
+	name := data.(*UpdateNameCs).Name
 	if len(name) == 0 {
 		return errors.New("名字为空")
 	}
 	if len(name) > 48 {
 		return errors.New("名字太长")
 	}
-	err = db.Update(func(txn *badger.Txn) error {
+	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
@@ -554,15 +503,12 @@ func handleUpdateName(playerConn *PlayerConn, protoName string, data map[string]
 	return nil
 }
 
-func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	roomType, err := cast.ToInt32E(data["type"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data interface{}) error {
+	roomType := data.(*UpdateRoomTypeCs).Type
 	if roomType < 1 || roomType > 3 {
 		return errors.New("不支持的游戏类型")
 	}
-	err = db.Update(func(txn *badger.Txn) error {
+	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
@@ -589,7 +535,7 @@ func handleUpdateRoomType(playerConn *PlayerConn, protoName string, data map[str
 	return nil
 }
 
-func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ interface{}) error {
 	var tokens []string
 	var roomDestroyed bool
 	err := db.Update(func(txn *badger.Txn) error {
@@ -657,7 +603,7 @@ func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 		conn := tokenConnMap[token]
 		if conn != nil {
 			if roomDestroyed {
-				conn.Send(&myws.Message{MsgName: "room_info_sc"})
+				conn.Send(&myws.Message{Data: &RoomInfoSc{}})
 			} else {
 				conn.NotifyPlayerInfo("")
 				break
@@ -667,28 +613,23 @@ func handleLeaveRoom(playerConn *PlayerConn, protoName string, _ map[string]inte
 	return nil
 }
 
-func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	name, err := cast.ToStringE(data["name"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func handleJoinRoom(playerConn *PlayerConn, protoName string, data interface{}) error {
+	data0 := data.(*JoinRoomCs)
+	name := data0.Name
 	if len(name) == 0 {
 		return errors.New("名字为空")
 	}
 	if len(name) > 48 {
 		return errors.New("名字太长")
 	}
-	rid, err := cast.ToStringE(data["rid"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	rid := data0.RoomId
 	if len(rid) == 0 {
 		return errors.New("房间ID为空")
 	}
 	if len(rid) > 16 {
 		return errors.New("房间ID太长")
 	}
-	err = db.Update(func(txn *badger.Txn) error {
+	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
@@ -748,35 +689,27 @@ func handleJoinRoom(playerConn *PlayerConn, protoName string, data map[string]in
 	return nil
 }
 
-func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	name, err := cast.ToStringE(data["name"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+func handleCreateRoom(playerConn *PlayerConn, protoName string, data interface{}) error {
+	data0 := data.(*CreateRoomCs)
+	name := data0.Name
 	if len(name) == 0 {
 		return errors.New("名字为空")
 	}
 	if len(name) > 48 {
 		return errors.New("名字太长")
 	}
-	rid, err := cast.ToStringE(data["rid"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	rid := data0.RoomId
 	if len(rid) == 0 {
 		return errors.New("房间ID为空")
 	}
 	if len(rid) > 16 {
 		return errors.New("房间ID太长")
 	}
-	roomType, err := cast.ToInt32E(data["type"])
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	roomType := data0.Type
 	if roomType < 1 || roomType > 3 {
 		return errors.New("不支持的游戏类型")
 	}
-	err = db.Update(func(txn *badger.Txn) error {
+	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
 		if err != nil {
 			return err
@@ -821,24 +754,18 @@ func handleCreateRoom(playerConn *PlayerConn, protoName string, data map[string]
 	return nil
 }
 
-func handleHeart(playerConn *PlayerConn, protoName string, _ map[string]interface{}) error {
+func handleHeart(playerConn *PlayerConn, protoName string, _ interface{}) error {
 	playerConn.Send(&myws.Message{
-		MsgName: "heart_sc",
-		Reply:   protoName,
-		Data: map[string]interface{}{
-			"time": time.Now().UnixMilli(),
+		Reply: protoName,
+		Data: &HeartSc{
+			Time: time.Now().UnixMilli(),
 		},
 	})
 	return nil
 }
 
-func handleLogin(playerConn *PlayerConn, protoName string, data map[string]interface{}) error {
-	token, ok := data["token"]
-	if !ok {
-		playerConn.SendError(protoName, 400, "no token")
-		return nil
-	}
-	tokenStr, _ := token.(string)
+func handleLogin(playerConn *PlayerConn, protoName string, data interface{}) error {
+	tokenStr := data.(*LoginCs).Token
 	if len(tokenStr) == 0 || len(tokenStr) > 128 || !isAlphaNum(tokenStr) {
 		playerConn.SendError(protoName, 400, "invalid token")
 		return nil

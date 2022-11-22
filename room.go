@@ -41,7 +41,7 @@ func DelRoom(txn *badger.Txn, roomId string) error {
 	return errors.WithStack(txn.Delete(key))
 }
 
-func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, []string, error) {
+func PackRoomInfo(txn *badger.Txn, room *Room) (*RoomInfoSc, []string, error) {
 	var tokens []string
 	host, err := GetPlayer(txn, room.Host)
 	if IsErrKeyNotFound(err) {
@@ -66,14 +66,14 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (map[string]interface{}, []string
 			}
 		}
 	}
-	ret := map[string]interface{}{
-		"rid":               room.RoomId,
-		"type":              room.RoomType,
-		"host":              host.Name,
-		"names":             players,
-		"change_card_count": room.ChangeCardCount,
-		"started":           room.Started,
-		"score":             room.Score,
+	ret := &RoomInfoSc{
+		RoomId:          room.RoomId,
+		Type:            room.RoomType,
+		HostName:        host.Name,
+		PlayerNames:     players,
+		ChangeCardCount: room.ChangeCardCount,
+		Started:         room.Started,
+		Score:           room.Score,
 	}
 	return ret, tokens, err
 }

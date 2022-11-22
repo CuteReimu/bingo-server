@@ -29,7 +29,7 @@ func (playerConn *PlayerConn) SetHeartTimer() {
 	})
 }
 
-func (playerConn *PlayerConn) Handle(name string, data map[string]interface{}) {
+func (playerConn *PlayerConn) Handle(name string, data interface{}) {
 	if !playerConn.Limit.Allow() {
 		playerConn.Close()
 		return
@@ -143,7 +143,7 @@ func (playerConn *PlayerConn) OnDisconnect() {
 		conn := tokenConnMap[token]
 		if conn != nil {
 			if roomDestroyed {
-				conn.Send(&myws.Message{MsgName: "room_info_sc"})
+				conn.Send(&myws.Message{Data: &RoomInfoSc{}})
 			} else {
 				conn.NotifyPlayerInfo("")
 				break
@@ -162,7 +162,7 @@ func isAlphaNum(s string) bool {
 }
 
 func (playerConn *PlayerConn) buildPlayerInfo() (*myws.Message, []string, error) {
-	var message = &myws.Message{MsgName: "room_info_sc"}
+	var message = &myws.Message{}
 	var tokens []string
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, playerConn.token)
@@ -186,6 +186,9 @@ func (playerConn *PlayerConn) buildPlayerInfo() (*myws.Message, []string, error)
 	})
 	if err != nil {
 		return nil, nil, err
+	}
+	if message.Data == nil {
+		message.Data = &RoomInfoSc{}
 	}
 	return message, tokens, nil
 }
@@ -215,10 +218,10 @@ func (playerConn *PlayerConn) getAllPlayersInRoom() ([]string, error) {
 	return tokens, nil
 }
 
-func (playerConn *PlayerConn) NotifyPlayerInfo(reply string, pairs ...KVPair) {
+func (playerConn *PlayerConn) NotifyPlayerInfo(reply string, winnerIdx ...int32) {
 	message, tokens, err := playerConn.buildPlayerInfo()
-	for _, pair := range pairs {
-		message.Data[pair.Key] = pair.Value
+	if len(winnerIdx) > 0 {
+		message.Data.(*RoomInfoSc).Winner = winnerIdx[0]
 	}
 	if err != nil {
 		log.WithError(err).Error("db error")
@@ -251,9 +254,8 @@ func (playerConn *PlayerConn) NotifyPlayersInRoom(reply string, message *myws.Me
 			}
 		}
 		playerConn.Send(&myws.Message{
-			MsgName: message.MsgName,
-			Reply:   reply,
-			Data:    message.Data,
+			Reply: reply,
+			Data:  message.Data,
 		})
 	}
 }
@@ -306,9 +308,4 @@ func SetPlayer(txn *badger.Txn, player *Player) error {
 func DelPlayer(txn *badger.Txn, token string) error {
 	key := append([]byte("token: "), []byte(token)...)
 	return errors.WithStack(txn.Delete(key))
-}
-
-type KVPair struct {
-	Key   string
-	Value interface{}
 }
