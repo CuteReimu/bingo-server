@@ -163,9 +163,7 @@ func (r RoomTypeBP) HandleUpdateSpell(playerConn *PlayerConn, idx uint32, status
 			room.BpData.BanPick == 1 && status != SpellStatus_banned {
 			return nil, st, errors.New("权限不足")
 		}
-		if status == SpellStatus_banned {
-			r.nextRound()
-		}
+		r.nextRound()
 	case room.Players[1]:
 		if room.BpData.WhoseTurn != 1 {
 			return nil, st, errors.New("不是你的回合")
@@ -175,9 +173,7 @@ func (r RoomTypeBP) HandleUpdateSpell(playerConn *PlayerConn, idx uint32, status
 			room.BpData.BanPick == 1 && status != SpellStatus_banned {
 			return nil, st, errors.New("权限不足")
 		}
-		if status == SpellStatus_banned {
-			r.nextRound()
-		}
+		r.nextRound()
 	}
 	newStatus = status
 	tokens = append(tokens, room.Host)
