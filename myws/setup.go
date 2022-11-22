@@ -13,25 +13,31 @@ type Message struct {
 	Data    map[string]interface{} `json:"data,omitempty"`
 }
 
-func (c *Message) Name() string {
+func (m *Message) String() string {
+	buf, _ := json.Marshal(m)
+	return string(buf)
+}
+
+type jsonCodec struct {
+}
+
+func (c *jsonCodec) Name() string {
 	return "json"
 }
 
-func (c *Message) MimeType() string {
+func (c *jsonCodec) MimeType() string {
 	return "application/json"
 }
 
-func (c *Message) Encode(msgObj interface{}, _ cellnet.ContextSet) (data interface{}, err error) {
+func (c *jsonCodec) Encode(msgObj interface{}, _ cellnet.ContextSet) (data interface{}, err error) {
+
 	return json.Marshal(msgObj)
+
 }
 
-func (c *Message) Decode(data interface{}, msgObj interface{}) error {
-	return json.Unmarshal(data.([]byte), msgObj.(*Message))
-}
+func (c *jsonCodec) Decode(data interface{}, msgObj interface{}) error {
 
-func (c *Message) String() string {
-	buf, _ := json.Marshal(c)
-	return string(buf)
+	return json.Unmarshal(data.([]byte), msgObj)
 }
 
 func init() {
@@ -44,7 +50,7 @@ func init() {
 
 	})
 	cellnet.RegisterMessageMeta(&cellnet.MessageMeta{
-		Codec: new(Message),
+		Codec: new(jsonCodec),
 		Type:  reflect.TypeOf((*Message)(nil)).Elem(),
 		ID:    1,
 	})
