@@ -218,9 +218,9 @@ func (m *UpdateSpellCs) Handle(s *bingoServer, _ cellnet.Session, token, protoNa
 	if err != nil {
 		return err
 	}
-	for _, token := range tokens {
-		if len(token) > 0 {
-			if conn, ok := s.tokenConnMap[token]; ok {
+	for _, token1 := range tokens {
+		if len(token1) > 0 {
+			if conn, ok := s.tokenConnMap[token1]; ok {
 				message := &myws.Message{
 					Data: &UpdateSpellSc{
 						Idx:       idx,
@@ -229,7 +229,7 @@ func (m *UpdateSpellCs) Handle(s *bingoServer, _ cellnet.Session, token, protoNa
 						BanPick:   banPick,
 					},
 				}
-				if token == token {
+				if token1 == token {
 					message.Reply = protoName
 				} else {
 					message.Reply = ""
