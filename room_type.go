@@ -226,23 +226,23 @@ func (r RoomTypeBP) nextRound() {
 	case 16:
 		bp.BanPick = 0
 	default:
-		count := 0
-		for _, status := range r.room.Status {
-			if status == SpellStatus_none {
-				count++
+		if !bp.LessThan4 && bp.Round%5 == 1 {
+			count := 0
+			for _, status := range r.room.Status {
+				if status == SpellStatus_none {
+					count++
+				}
 			}
-		}
-		if !bp.LessThan4 && bp.Round%5 == 1 && 25-count <= 4 {
-			bp.LessThan4 = true
+			if 25-count <= 4 {
+				bp.LessThan4 = true
+			}
 		}
 		if bp.LessThan4 {
 			if bp.BanPick == 2 {
+				bp.WhoseTurn = 1 - bp.WhoseTurn
 				bp.BanPick = 0
 			} else {
-				if count == 1 {
-					bp.BanPick = 2
-				}
-				bp.WhoseTurn = 1 - bp.WhoseTurn
+				bp.BanPick = 2
 			}
 		} else {
 			switch bp.Round % 5 {
