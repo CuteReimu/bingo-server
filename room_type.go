@@ -19,7 +19,7 @@ type RoomNextRoundHandler interface {
 type RoomType interface {
 	CanPause() bool
 	CardCount() [3]int
-	HandleUpdateSpell(playerConn *PlayerConn, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error)
+	HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error)
 }
 
 func (x *Room) Type() RoomType {
@@ -45,14 +45,14 @@ func (r RoomTypeNormal) CardCount() [3]int {
 	return [3]int{10, 10, 5}
 }
 
-func (r RoomTypeNormal) HandleUpdateSpell(playerConn *PlayerConn, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
+func (r RoomTypeNormal) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
 	room := r.room
 	st := room.Status[idx]
 	if st == SpellStatus_banned {
 		return nil, st, errors.New("游戏时间到")
 	}
 	now := time.Now().UnixMilli()
-	if room.PauseBeginMs != 0 && playerConn.token != room.Host {
+	if room.PauseBeginMs != 0 && token != room.Host {
 		return nil, status, errors.New("暂停中，不能操作")
 	}
 	if room.StartMs <= now-int64(room.GameTime)*60000-int64(room.Countdown)*1000-room.TotalPauseMs {
@@ -62,7 +62,7 @@ func (r RoomTypeNormal) HandleUpdateSpell(playerConn *PlayerConn, idx uint32, st
 		return nil, st, errors.New("倒计时还没结束")
 	}
 	tokens = append(tokens, room.Host)
-	switch playerConn.token {
+	switch token {
 	case room.Host:
 		newStatus = status
 		tokens = append(tokens, room.Players...)
@@ -150,10 +150,10 @@ func (r RoomTypeBP) CardCount() [3]int {
 	return [3]int{5, 15, 5}
 }
 
-func (r RoomTypeBP) HandleUpdateSpell(playerConn *PlayerConn, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
+func (r RoomTypeBP) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
 	room := r.room
 	st := room.Status[idx]
-	switch playerConn.token {
+	switch token {
 	case room.Players[0]:
 		if room.BpData.WhoseTurn != 0 {
 			return nil, st, errors.New("不是你的回合")

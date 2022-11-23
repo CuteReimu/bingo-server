@@ -16,11 +16,15 @@ import (
 	"time"
 )
 
+const ( // 用于context的key
+	lastHeartTime     = 1
+	playerConnToken   = 2
+	playerConnLimiter = 3
+)
+
 var port = flag.Int("p", 9999, "listening port")
 var address = flag.String("a", "/ws", "ws address endpoint")
 var tcpMute = flag.Bool("m", false, "mute tcp debug log")
-
-var eventQueue = cellnet.NewEventQueue()
 
 func main() {
 	flag.Parse()
@@ -36,37 +40,88 @@ func main() {
 	if *tcpMute {
 		msglog.SetCurrMsgLogMode(msglog.MsgLogMode_Mute)
 	}
+	(&bingoServer{timeout: time.Minute}).start()
+}
+
+type bingoServer struct {
+	timeout      time.Duration
+	peer         cellnet.WSAcceptor
+	tokenConnMap map[string]cellnet.Session
+}
+
+func (s *bingoServer) start() {
+	s.tokenConnMap = make(map[string]cellnet.Session)
+	eventQueue := cellnet.NewEventQueue()
 	// 创建一个tcp的侦听器，名称为server，所有连接将事件投递到queue队列,单线程的处理
-	p := peer.NewGenericPeer("gorillaws.Acceptor", "server", fmt.Sprintf("ws://0.0.0.0:%d%s", *port, *address), eventQueue)
-	idConnMap := make(map[int64]*PlayerConn)
-	proc.BindProcessorHandler(p, "myws", func(ev cellnet.Event) {
-		id := ev.Session().ID()
+	s.peer = peer.NewGenericPeer("gorillaws.Acceptor", "server", fmt.Sprintf("ws://0.0.0.0:%d%s", *port, *address), eventQueue).(cellnet.WSAcceptor)
+	proc.BindProcessorHandler(s.peer, "myws", func(ev cellnet.Event) {
 		switch pb := ev.Message().(type) {
 		case *cellnet.SessionAccepted:
-			log.Info("session connected: ", id)
-			playerConn := &PlayerConn{Session: ev.Session(), Limit: rate.NewLimiter(5, 5)}
-			idConnMap[id] = playerConn
-			playerConn.SetHeartTimer()
+			log.Info("session connected: ", ev.Session().ID())
+			ev.Session().(cellnet.ContextSet).SetContext(playerConnLimiter, rate.NewLimiter(5, 5))
 		case *myws.Message:
-			if player, ok := idConnMap[id]; ok {
-				player.Handle(pb.MsgName, pb.Data)
+			limiter, ok := ev.Session().(cellnet.ContextSet).GetContext(playerConnLimiter)
+			if !ok || !limiter.(*rate.Limiter).Allow() {
+				ev.Session().Close()
+				break
+			}
+			if handler, ok := pb.Data.(MessageHandler); ok {
+				ev.Session().(cellnet.ContextSet).SetContext(lastHeartTime, time.Now())
+				var token string
+				if _, ok := handler.(*LoginCs); !ok {
+					if !ev.Session().(cellnet.ContextSet).FetchContext(playerConnToken, &token) {
+						ev.Session().Send(&myws.Message{Reply: pb.MsgName, Data: &ErrorSc{Code: -1, Msg: "You haven't login."}})
+						break
+					}
+				}
+				if err := handler.Handle(s, ev.Session(), token, pb.MsgName); err != nil {
+					log.WithError(err).Error("handle failed: ", pb.MsgName)
+					ev.Session().Send(&myws.Message{Reply: pb.MsgName, Data: &ErrorSc{Code: 500, Msg: err.Error()}})
+				}
+			} else {
+				log.Warn("can not find handler: ", pb.MsgName)
+				ev.Session().Send(&myws.Message{Reply: pb.MsgName, Data: &ErrorSc{Code: 404, Msg: "404 not found"}})
 			}
 		case *cellnet.SessionClosed:
-			if player, ok := idConnMap[id]; ok {
-				player.OnDisconnect()
-				delete(idConnMap, id)
+			var token string
+			if ev.Session().(cellnet.ContextSet).FetchContext(playerConnToken, &token) {
+				delete(s.tokenConnMap, token)
+				_ = (&LeaveRoomCs{}).Handle(s, ev.Session(), token, "")
 			}
 		}
 	})
-	p.Start()
+	s.peer.Start()
 	eventQueue.EnableCapturePanic(true)
 	eventQueue.StartLoop()
+	go s.startRemoveTimeoutTimer()
 	fmt.Printf("请访问：ws://127.0.0.1:%d%s\n", *port, *address)
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, os.Interrupt)
 	<-ch
 	eventQueue.StopLoop()
 	eventQueue.Wait()
+}
+
+func (s *bingoServer) startRemoveTimeoutTimer() {
+	ch := time.Tick(15 * time.Second)
+	for {
+		<-ch
+		s.peer.Queue().Post(s.removeTimeoutRoom)
+	}
+}
+
+func (s *bingoServer) removeTimeoutRoom() {
+	if s.peer.SessionCount() == 0 {
+		return
+	}
+	now := time.Now()
+	s.peer.VisitSession(func(session cellnet.Session) bool {
+		lt, _ := session.(cellnet.ContextSet).GetContext(lastHeartTime)
+		if lt.(time.Time).Add(s.timeout).Before(now) {
+			session.Close()
+		}
+		return true
+	})
 }
 
 var db *badger.DB

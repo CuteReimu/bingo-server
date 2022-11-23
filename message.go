@@ -12,6 +12,10 @@ import (
 	"strings"
 )
 
+type MessageHandler interface {
+	Handle(s *bingoServer, session cellnet.Session, token, protoName string) error
+}
+
 func init() {
 	msglog.SetCurrMsgLogMode(msglog.MsgLogMode_BlackList)
 	c := codec.MustGetCodec("json")
