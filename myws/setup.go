@@ -35,7 +35,12 @@ func (c *jsonCodec) MimeType() string {
 }
 
 func (c *jsonCodec) Encode(msgObj interface{}, _ cellnet.ContextSet) (data interface{}, err error) {
-	return json.Marshal(msgObj)
+	var buf []byte
+	buf, err = json.Marshal(msgObj)
+	if len(buf) == 2 && buf[0] == '{' && buf[1] == '}' {
+		buf = nil
+	}
+	return buf, err
 }
 
 func (c *jsonCodec) Decode(data interface{}, msgObj interface{}) error {

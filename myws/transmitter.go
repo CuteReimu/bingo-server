@@ -79,7 +79,7 @@ func (WSMessageTransmitter) OnSendMessage(ses cellnet.Session, msg interface{}) 
 			pkt = append(pkt, '"')
 		}
 		if len(buf) > 0 {
-			pkt = append(pkt, []byte(`,"Data":`)...)
+			pkt = append(pkt, []byte(`,"data":`)...)
 			pkt = append(pkt, buf...)
 		}
 		pkt = append(pkt, '}')
