@@ -15,6 +15,7 @@ var log = golog.New("bingo")
 
 func init() {
 	log.SetLevel(golog.Level_Debug)
+	log.SetParts(golog.LogPart_Level, golog.LogPart_Name, golog.LogPart_Time, golog.LogPart_ShortFileName)
 	writer, err := rotatelogs.New(
 		path.Join("log", "%Y-%m-%d.log"),
 		rotatelogs.WithMaxAge(7*24*time.Hour),
