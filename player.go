@@ -36,6 +36,7 @@ func (s *bingoServer) buildPlayerInfo(token string) (*myws.Message, []string, er
 	}
 	if message.Data == nil {
 		message.Data = &RoomInfoSc{}
+		tokens = append(tokens, token)
 	}
 	return message, tokens, nil
 }
