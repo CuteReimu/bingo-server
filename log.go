@@ -31,7 +31,12 @@ func init() {
 }
 
 func IsErrKeyNotFound(err error) bool {
-	return err == badger.ErrKeyNotFound || errors.Unwrap(err) == badger.ErrKeyNotFound
+	for ; err != nil; err = errors.Unwrap(err) {
+		if err == badger.ErrKeyNotFound {
+			return true
+		}
+	}
+	return false
 }
 
 type logWriter struct {
