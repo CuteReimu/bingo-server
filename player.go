@@ -71,7 +71,7 @@ func (s *bingoServer) NotifyPlayerInfo(token, reply string, winnerIdx ...int32) 
 		message.Data.(*RoomInfoSc).Winner = winnerIdx[0]
 	}
 	if err != nil {
-		log.WithError(err).Error("db error")
+		log.Errorf("db error: %+v", err)
 	} else {
 		for _, token1 := range tokens {
 			if conn, ok := s.tokenConnMap[token1]; ok {
@@ -92,7 +92,7 @@ func (s *bingoServer) NotifyPlayerInfo(token, reply string, winnerIdx ...int32) 
 func (s *bingoServer) NotifyPlayersInRoom(token, reply string, message *myws.Message) {
 	tokens, err := s.getAllPlayersInRoom(token)
 	if err != nil {
-		log.WithError(err).Error("db error")
+		log.Errorf("db error: %+v", err)
 	} else {
 		for _, token1 := range tokens {
 			if conn, ok := s.tokenConnMap[token1]; ok {

@@ -1,47 +1,43 @@
 package main
 
 import (
-	"fmt"
+	"github.com/davyxu/golog"
 	"github.com/dgraph-io/badger/v3"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/pkg/errors"
-	"github.com/rifflock/lfshook"
-	"github.com/sirupsen/logrus"
+	"io"
+	"os"
 	"path"
 	"time"
 )
 
-var log = &errorEntryWithStack{logrus.WithFields(logrus.Fields{})}
+var log = golog.New("bingo")
 
 func init() {
+	log.SetLevel(golog.Level_Debug)
 	writer, err := rotatelogs.New(
 		path.Join("log", "%Y-%m-%d.log"),
 		rotatelogs.WithMaxAge(7*24*time.Hour),
 		rotatelogs.WithRotationTime(24*time.Hour),
 	)
 	if err != nil {
-		logrus.WithError(err).Error("unable to write logs")
-		return
+		panic(err)
 	}
-	logrus.AddHook(lfshook.NewHook(lfshook.WriterMap{
-		logrus.FatalLevel: writer,
-		logrus.ErrorLevel: writer,
-		logrus.WarnLevel:  writer,
-		logrus.InfoLevel:  writer,
-		logrus.DebugLevel: writer,
-	}, &logrus.TextFormatter{DisableQuote: true}))
-	logrus.SetFormatter(&logrus.TextFormatter{DisableQuote: true})
-	logrus.SetLevel(logrus.DebugLevel)
-}
-
-type errorEntryWithStack struct {
-	*logrus.Entry
-}
-
-func (e *errorEntryWithStack) WithError(err error) *logrus.Entry {
-	return e.Entry.WithError(fmt.Errorf("%+v", err))
+	err = golog.SetOutput("bingo", &logWriter{fileWriter: writer})
+	if err != nil {
+		panic(err)
+	}
 }
 
 func IsErrKeyNotFound(err error) bool {
 	return err == badger.ErrKeyNotFound || errors.Unwrap(err) == badger.ErrKeyNotFound
+}
+
+type logWriter struct {
+	fileWriter io.Writer
+}
+
+func (l *logWriter) Write(p []byte) (n int, err error) {
+	_, _ = os.Stdout.Write(p)
+	return l.fileWriter.Write(p)
 }
