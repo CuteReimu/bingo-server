@@ -233,7 +233,7 @@ func (r RoomTypeBP) nextRound() {
 					count++
 				}
 			}
-			if 25-count <= 4 {
+			if count < 4 {
 				bp.LessThan4 = true
 			}
 		}
