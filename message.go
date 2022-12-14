@@ -43,7 +43,7 @@ func init() {
 	initMessage(c, (*NextRoundSc)(nil))
 }
 
-func initMessage(c cellnet.Codec, i any) {
+func initMessage(c cellnet.Codec, i interface{}) {
 	t := reflect.TypeOf(i).Elem()
 	name := strings.Replace(t.Name(), "Msg", "", 1)
 	name = strutil.ToSnakeCase(strings.Join(strutil.SplitCamelCase(name), " "))

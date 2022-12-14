@@ -3,7 +3,6 @@ package main
 import (
 	"time"
 
-	"github.com/CuteReimu/goutil/slices"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
@@ -61,7 +60,14 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (*RoomInfoSc, []string, error) {
 				return nil, nil, err
 			}
 			players[i] = player.Name
-			if !slices.Contains(tokens, player.Token) {
+			if func() bool {
+				for _, token := range tokens {
+					if token == player.Token {
+						return false
+					}
+				}
+				return true
+			}() {
 				tokens = append(tokens, player.Token)
 			}
 		}

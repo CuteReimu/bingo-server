@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/CuteReimu/goutil/slices"
 	"github.com/pkg/errors"
 	"github.com/xuri/excelize/v2"
 	"math/rand"
@@ -38,7 +37,21 @@ func RandSpells(games []string, ranks []string, spellCounts [3]int) ([]*Spell, e
 					if err != nil {
 						return nil, errors.WithStack(err)
 					}
-					inGame := slices.Contains(games, strings.TrimSpace(row[1])) && (ranks == nil || slices.Contains(ranks, strings.TrimSpace(row[5])))
+					inGame := func() bool {
+						for _, g := range games {
+							if g == strings.TrimSpace(row[1]) {
+								return true
+							}
+						}
+						return false
+					}() && ranks == nil || func() bool {
+						for _, r := range ranks {
+							if r == strings.TrimSpace(row[5]) {
+								return true
+							}
+						}
+						return false
+					}()
 					if star > 0 && star <= 3 && inGame {
 						spells[star-1] = append(spells[star-1], &Spell{
 							Game: row[1],
@@ -65,17 +78,17 @@ func RandSpells(games []string, ranks []string, spellCounts [3]int) ([]*Spell, e
 		return nil, errors.New("符卡数量不足")
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixMilli()))
-	slices.ShuffleN(r, spells[0], spellCounts[0])
-	slices.ShuffleN(r, spells[1], spellCounts[1])
+	r.Shuffle(len(spells[0]), func(i, j int) { spells[0][i], spells[0][j] = spells[0][j], spells[0][i] })
+	r.Shuffle(len(spells[1]), func(i, j int) { spells[1][i], spells[1][j] = spells[1][j], spells[1][i] })
 	spells01 := append(spells[0][:spellCounts[0]:spellCounts[0]], spells[1][:spellCounts[1]]...)
-	slices.ShuffleN(r, spells01, len(spells01))
+	r.Shuffle(len(spells01), func(i, j int) { spells01[i], spells01[j] = spells01[j], spells01[i] })
 	if len(spells[2]) < spellCounts[2] {
-		slices.ShuffleN(r, spells[3], spellCounts[2]-len(spells[2]))
+		r.Shuffle(len(spells[3]), func(i, j int) { spells[3][i], spells[3][j] = spells[3][j], spells[3][i] })
 		spells[2] = append(spells[2], spells[3][:spellCounts[2]-len(spells[2])]...)
 	}
-	slices.ShuffleN(r, spells[2], spellCounts[2])
+	r.Shuffle(len(spells01), func(i, j int) { spells[2][i], spells[2][j] = spells[2][j], spells[2][i] })
 	idx := []int{0, 1, 3, 4}
-	slices.ShuffleN(r, idx, len(idx))
+	r.Shuffle(len(idx), func(i, j int) { idx[i], idx[j] = idx[j], idx[i] })
 	result := make([]*Spell, 25)
 	result[idx[0]] = spells[2][0]
 	result[5+idx[1]] = spells[2][1]

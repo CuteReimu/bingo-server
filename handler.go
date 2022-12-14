@@ -4,7 +4,6 @@ import (
 	"github.com/davyxu/cellnet"
 	"time"
 
-	"github.com/CuteReimu/goutil/slices"
 	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
@@ -322,19 +321,18 @@ func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, pro
 		needWin = room.NeedWin
 		totalPauseMs = room.TotalPauseMs
 		pauseBeginMs = room.PauseBeginMs
-		if token == room.Players[0] {
-			status = slices.Map(len(room.Status), func(i int) (int32, bool) { return int32(room.Status[i].hideRightSelect()), true })
-		} else if token == room.Players[1] {
-			status = slices.Map(len(room.Status), func(i int) (int32, bool) { return int32(room.Status[i].hideLeftSelect()), true })
-		} else {
-			status = slices.Map(len(room.Status), func(i int) (int32, bool) { return int32(room.Status[i]), true })
+		for _, st := range room.Status {
+			if token == room.Players[0] {
+				status = append(status, int32(st.hideRightSelect()))
+			} else if token == room.Players[1] {
+				status = append(status, int32(st.hideLeftSelect()))
+			} else {
+				status = append(status, int32(st))
+			}
 		}
 		if room.BpData != nil {
 			whoseTurn = room.BpData.WhoseTurn
 			banPick = room.BpData.BanPick
-		}
-		if roomType, ok := room.Type().(interface{ GetWhoseTurnAndBanPick() (int32, int32) }); ok {
-			whoseTurn, banPick = roomType.GetWhoseTurnAndBanPick()
 		}
 		return nil
 	})
@@ -406,7 +404,14 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 			return errors.New("你不是房主")
 		} else if room.Started {
 			return errors.New("游戏已经开始")
-		} else if slices.Any(len(room.Players), func(i int) bool { return len(room.Players[i]) == 0 }) {
+		} else if func() bool {
+			for _, p := range room.Players {
+				if len(p) == 0 {
+					return true
+				}
+			}
+			return false
+		}() {
 			return errors.New("玩家没满")
 		}
 		spells, err = RandSpells(games, ranks, room.Type().CardCount())
@@ -710,9 +715,6 @@ func (m *CreateRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoNam
 		player.RoomId = rid
 		player.Name = name
 		if err = SetPlayer(txn, player); err != nil {
-			return err
-		}
-		if err != nil {
 			return err
 		}
 		return SetRoom(txn, &room)
