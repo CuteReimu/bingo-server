@@ -49,7 +49,7 @@ func (r RoomTypeNormal) HandleUpdateSpell(token string, idx uint32, status Spell
 	room := r.room
 	st := room.Status[idx]
 	if st == SpellStatus_banned {
-		return nil, st, errors.New("游戏时间到")
+		return nil, st, errors.New("不支持的操作")
 	}
 	now := time.Now().UnixMilli()
 	if room.PauseBeginMs != 0 && token != room.Host {
