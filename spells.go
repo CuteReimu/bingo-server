@@ -86,7 +86,7 @@ func RandSpells(games []string, ranks []string, spellCounts [3]int) ([]*Spell, e
 		r.Shuffle(len(spells[3]), func(i, j int) { spells[3][i], spells[3][j] = spells[3][j], spells[3][i] })
 		spells[2] = append(spells[2], spells[3][:spellCounts[2]-len(spells[2])]...)
 	}
-	r.Shuffle(len(spells01), func(i, j int) { spells[2][i], spells[2][j] = spells[2][j], spells[2][i] })
+	r.Shuffle(len(spells[2]), func(i, j int) { spells[2][i], spells[2][j] = spells[2][j], spells[2][i] })
 	idx := []int{0, 1, 3, 4}
 	r.Shuffle(len(idx), func(i, j int) { idx[i], idx[j] = idx[j], idx[i] })
 	result := make([]*Spell, 25)
