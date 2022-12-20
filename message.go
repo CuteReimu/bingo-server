@@ -41,6 +41,9 @@ func init() {
 	initMessage(c, (*PauseSc)(nil))
 	initMessage(c, (*NextRoundCs)(nil))
 	initMessage(c, (*NextRoundSc)(nil))
+	initMessage(c, (*FinishSelectSpellCs)(nil))
+	initMessage(c, (*LinkTimeCs)(nil))
+	initMessage(c, (*LinkDataSc)(nil))
 }
 
 func initMessage(c cellnet.Codec, i interface{}) {
@@ -174,17 +177,18 @@ func (m *StartGameCs) String() string {
 }
 
 type SpellListSc struct {
-	Spells         []*Spell `json:"spells"`
-	Time           int64    `json:"time"`
-	StartTime      int64    `json:"start_time"`
-	GameTime       uint32   `json:"game_time"` // 游戏总时间（不含倒计时），单位：分
-	Countdown      uint32   `json:"countdown"` // 倒计时，单位：秒
-	NeedWin        uint32   `json:"need_win"`
-	WhoseTurn      int32    `json:"whose_turn"`
-	BanPick        int32    `json:"ban_pick"`
-	TotalPauseTime int64    `json:"total_pause_time,omitempty"`
-	PauseBeginMs   int64    `json:"pause_begin_ms,omitempty"`
-	Status         []int32  `json:"status,omitempty"`
+	Spells         []*Spell  `json:"spells"`
+	Time           int64     `json:"time"`
+	StartTime      int64     `json:"start_time"`
+	GameTime       uint32    `json:"game_time"` // 游戏总时间（不含倒计时），单位：分
+	Countdown      uint32    `json:"countdown"` // 倒计时，单位：秒
+	NeedWin        uint32    `json:"need_win"`
+	WhoseTurn      int32     `json:"whose_turn"`
+	BanPick        int32     `json:"ban_pick"`
+	TotalPauseTime int64     `json:"total_pause_time,omitempty"`
+	PauseBeginMs   int64     `json:"pause_begin_ms,omitempty"`
+	Status         []int32   `json:"status,omitempty"`
+	Link           *LinkData `json:"link_data,omitempty"`
 }
 
 func (m *SpellListSc) String() string {
@@ -282,6 +286,31 @@ type NextRoundSc struct {
 }
 
 func (m *NextRoundSc) String() string {
+	buf, _ := json.Marshal(m)
+	return string(buf)
+}
+
+type FinishSelectSpellCs struct {
+}
+
+func (m *FinishSelectSpellCs) String() string {
+	buf, _ := json.Marshal(m)
+	return string(buf)
+}
+
+type LinkTimeCs struct {
+	Whose int32 `json:"whose"`
+	Start bool  `json:"start"`
+}
+
+func (m *LinkTimeCs) String() string {
+	buf, _ := json.Marshal(m)
+	return string(buf)
+}
+
+type LinkDataSc LinkData
+
+func (m *LinkDataSc) String() string {
 	buf, _ := json.Marshal(m)
 	return string(buf)
 }

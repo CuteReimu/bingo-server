@@ -299,6 +299,7 @@ func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, pro
 	var needWin uint32
 	var totalPauseMs, pauseBeginMs int64
 	var whoseTurn, banPick int32
+	var linkData *LinkData
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
 		if err != nil {
@@ -334,6 +335,7 @@ func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, pro
 			whoseTurn = room.BpData.WhoseTurn
 			banPick = room.BpData.BanPick
 		}
+		linkData = room.LinkData
 		return nil
 	})
 	if err != nil {
@@ -353,6 +355,7 @@ func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, pro
 			TotalPauseTime: totalPauseMs,
 			PauseBeginMs:   pauseBeginMs,
 			Status:         status,
+			Link:           linkData,
 		},
 	})
 	return nil
@@ -414,7 +417,7 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		}() {
 			return errors.New("玩家没满")
 		}
-		spells, err = RandSpells(games, ranks, room.Type().CardCount())
+		spells, err = room.Type().RandSpells(games, ranks)
 		if err != nil {
 			return errors.Wrap(err, "随符卡失败")
 		}
@@ -774,5 +777,94 @@ func (m *LoginCs) Handle(s *bingoServer, session cellnet.Session, _, protoName s
 	}
 	message.Reply = protoName
 	session.Send(message)
+	return nil
+}
+
+func (m *FinishSelectSpellCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName string) error {
+	var message *LinkDataSc
+	err := db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Host != token {
+			return errors.New("你不是房主")
+		}
+		if _, ok := room.Type().(RoomTypeLink); !ok {
+			return errors.New("不支持这种操作")
+		}
+		data := room.LinkData
+		if data.FinishSelect {
+			return errors.New("选卡已经结束了")
+		}
+		if len(data.LinkIdxA) == 0 || len(data.LinkIdxB) == 0 ||
+			data.LinkIdxA[len(data.LinkIdxA)-1] != 24 || data.LinkIdxB[len(data.LinkIdxB)-1] != 20 {
+			return errors.New("选卡还没结束")
+		}
+		data.FinishSelect = true
+		message = (*LinkDataSc)(data)
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	s.NotifyPlayersInRoom(token, protoName, &myws.Message{Data: message})
+	return nil
+}
+
+func (m *LinkTimeCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName string) error {
+	if m.Whose != 0 && m.Whose != 1 {
+		return errors.New("参数错误")
+	}
+	var message *LinkDataSc
+	err := db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Host != token {
+			return errors.New("你不是房主")
+		}
+		if _, ok := room.Type().(RoomTypeLink); !ok {
+			return errors.New("不支持这种操作")
+		}
+		data := room.LinkData
+		if !data.FinishSelect {
+			return errors.New("选卡还没结束")
+		}
+		if m.Whose == 0 {
+			if m.Start {
+				data.StartMsA = time.Now().UnixMilli()
+			} else {
+				data.EndMsA = time.Now().UnixMilli()
+			}
+		} else {
+			if m.Start {
+				data.StartMsB = time.Now().UnixMilli()
+			} else {
+				data.EndMsB = time.Now().UnixMilli()
+			}
+		}
+		message = (*LinkDataSc)(data)
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	s.NotifyPlayersInRoom(token, protoName, &myws.Message{Data: message})
 	return nil
 }

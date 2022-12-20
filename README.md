@@ -1,7 +1,7 @@
 # bingo-server
 
 ![](https://img.shields.io/github/languages/top/Touhou-Freshman-Camp/bingo-server "语言")
-[![](https://img.shields.io/github/workflow/status/Touhou-Freshman-Camp/bingo-server/Go)](https://github.com/Touhou-Freshman-Camp/bingo-server/actions/workflows/golangci-lint.yml "代码分析")
+[![](https://img.shields.io/github/actions/workflow/status/Touhou-Freshman-Camp/bingo-server/golangci-lint.yml?branch=master)](https://github.com/Touhou-Freshman-Camp/bingo-server/actions/workflows/golangci-lint.yml "代码分析")
 [![](https://img.shields.io/github/contributors/Touhou-Freshman-Camp/bingo-server)](https://github.com/Touhou-Freshman-Camp/bingo-server/graphs/contributors "贡献者")
 [![](https://img.shields.io/github/license/Touhou-Freshman-Camp/bingo-server)](https://github.com/Touhou-Freshman-Camp/bingo-server/blob/master/LICENSE "许可协议")
 
@@ -21,11 +21,11 @@
 
 ```json
 {
-    "name": "error_sc",
-    "data": {
-      "code": 1,
-      "msg": "create room failed"
-    }
+  "name": "error_sc",
+  "data": {
+    "code": 1,
+    "msg": "create room failed"
+  }
 }
 ```
 
@@ -170,3 +170,15 @@
 
 | 字段  | 类型  | 备注  |
 |-----|-----|-----|
+
+**结束选卡（房主才能使用）: finish_select_spell_cs**
+
+| 字段  | 类型  | 备注  |
+|-----|-----|-----|
+
+**连线记时: link_time_cs**
+
+| 字段    | 类型   | 备注               |
+|-------|------|------------------|
+| whose | int | 0左，1右 |
+| start | bool | true-开始，false-停止 |

@@ -12,13 +12,12 @@ type RoomStartHandler interface {
 }
 
 type RoomNextRoundHandler interface {
-	OnStart()
 	HandleNextRound() error
 }
 
 type RoomType interface {
 	CanPause() bool
-	CardCount() [3]int
+	RandSpells(games, ranks []string) ([]*Spell, error)
 	HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error)
 }
 
@@ -28,6 +27,8 @@ func (x *Room) Type() RoomType {
 		return RoomTypeNormal{room: x}
 	case 2:
 		return RoomTypeBP{room: x}
+	case 3:
+		return RoomTypeLink{room: x}
 	default:
 		panic("不支持的游戏类型")
 	}
@@ -41,8 +42,8 @@ func (r RoomTypeNormal) CanPause() bool {
 	return true
 }
 
-func (r RoomTypeNormal) CardCount() [3]int {
-	return [3]int{10, 10, 5}
+func (r RoomTypeNormal) RandSpells(games, ranks []string) ([]*Spell, error) {
+	return RandSpells(games, ranks, [3]int{10, 10, 5})
 }
 
 func (r RoomTypeNormal) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
@@ -146,8 +147,8 @@ func (r RoomTypeBP) OnStart() {
 	}
 }
 
-func (r RoomTypeBP) CardCount() [3]int {
-	return [3]int{5, 15, 5}
+func (r RoomTypeBP) RandSpells(games, ranks []string) ([]*Spell, error) {
+	return RandSpells(games, ranks, [3]int{5, 15, 5})
 }
 
 func (r RoomTypeBP) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
@@ -257,4 +258,109 @@ func (r RoomTypeBP) nextRound() {
 			}
 		}
 	}
+}
+
+type RoomTypeLink struct {
+	room *Room
+}
+
+func (r RoomTypeLink) CanPause() bool {
+	return false
+}
+
+func (r RoomTypeLink) OnStart() {
+	r.room.LinkData = &LinkData{}
+}
+
+func (r RoomTypeLink) RandSpells(games, ranks []string) ([]*Spell, error) {
+	return RandSpells2(games, ranks, [3]int{5, 15, 5})
+}
+
+func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
+	room := r.room
+	st := room.Status[idx]
+	if st == SpellStatus_banned {
+		return nil, st, errors.New("不支持的操作")
+	}
+	tokens = append(tokens, room.Host)
+	switch token {
+	case room.Host:
+		newStatus = status
+		tokens = append(tokens, room.Players...)
+	case room.Players[0]:
+		if r.room.LinkData.FinishSelect {
+			return nil, st, errors.New("选卡已结束")
+		}
+		switch status {
+		case SpellStatus_left_select:
+			for _, idx1 := range r.room.LinkData.LinkIdxA {
+				if idx1 == idx {
+					return nil, st, errors.New("已经选了这张卡")
+				}
+			}
+			if len(r.room.LinkData.LinkIdxA) == 0 {
+				if idx != 0 {
+					return nil, st, errors.New("不合理的选卡")
+				}
+			} else {
+				idx0 := r.room.LinkData.LinkIdxA[len(r.room.LinkData.LinkIdxA)-1]
+				diff := int32(idx) - int32(idx0)
+				if idx0 == 24 || diff != -6 && diff != -5 && diff != -4 && diff != -1 && diff != 1 && diff != 4 && diff != 5 && diff != 6 {
+					return nil, st, errors.New("不合理的选卡")
+				}
+			}
+			if st == SpellStatus_right_select {
+				newStatus = SpellStatus_both_select
+			} else {
+				newStatus = status
+			}
+		case SpellStatus_none:
+			if st == SpellStatus_both_select {
+				newStatus = SpellStatus_right_select
+			} else {
+				newStatus = status
+			}
+		default:
+			return nil, st, errors.New("权限不足")
+		}
+		tokens = append(tokens, room.Players[0])
+	case room.Players[1]:
+		if r.room.LinkData.FinishSelect {
+			return nil, st, errors.New("选卡已结束")
+		}
+		switch status {
+		case SpellStatus_right_select:
+			for _, idx1 := range r.room.LinkData.LinkIdxB {
+				if idx1 == idx {
+					return nil, st, errors.New("已经选了这张卡")
+				}
+			}
+			if len(r.room.LinkData.LinkIdxB) == 0 {
+				if idx != 4 {
+					return nil, st, errors.New("不合理的选卡")
+				}
+			} else {
+				idx0 := r.room.LinkData.LinkIdxB[len(r.room.LinkData.LinkIdxB)-1]
+				diff := int32(idx) - int32(idx0)
+				if idx0 == 20 || diff != -6 && diff != -5 && diff != -4 && diff != -1 && diff != 1 && diff != 4 && diff != 5 && diff != 6 {
+					return nil, st, errors.New("不合理的选卡")
+				}
+			}
+			if st == SpellStatus_left_select {
+				newStatus = SpellStatus_both_select
+			} else {
+				newStatus = status
+			}
+		case SpellStatus_none:
+			if st == SpellStatus_both_select {
+				newStatus = SpellStatus_left_select
+			} else {
+				newStatus = status
+			}
+		default:
+			return nil, st, errors.New("权限不足")
+		}
+		tokens = append(tokens, room.Players[0])
+	}
+	return
 }
