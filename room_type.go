@@ -49,7 +49,7 @@ func (r RoomTypeNormal) RandSpells(games, ranks []string) ([]*Spell, error) {
 func (r RoomTypeNormal) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
 	room := r.room
 	st := room.Status[idx]
-	if st == SpellStatus_banned {
+	if status == SpellStatus_banned {
 		return nil, st, errors.New("不支持的操作")
 	}
 	now := time.Now().UnixMilli()
@@ -279,7 +279,7 @@ func (r RoomTypeLink) RandSpells(games, ranks []string) ([]*Spell, error) {
 func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
 	room := r.room
 	st := room.Status[idx]
-	if st == SpellStatus_banned {
+	if status == SpellStatus_banned || status.isSelectStatus() {
 		return nil, st, errors.New("不支持的操作")
 	}
 	tokens = append(tokens, room.Host)
@@ -292,7 +292,7 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 			return nil, st, errors.New("选卡已结束")
 		}
 		switch status {
-		case SpellStatus_left_select:
+		case SpellStatus_left_get:
 			for _, idx1 := range r.room.LinkData.LinkIdxA {
 				if idx1 == idx {
 					return nil, st, errors.New("已经选了这张卡")
@@ -309,14 +309,14 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 					return nil, st, errors.New("不合理的选卡")
 				}
 			}
-			if st == SpellStatus_right_select {
-				newStatus = SpellStatus_both_select
+			if st == SpellStatus_right_get {
+				newStatus = SpellStatus_both_get
 			} else {
 				newStatus = status
 			}
 		case SpellStatus_none:
-			if st == SpellStatus_both_select {
-				newStatus = SpellStatus_right_select
+			if st == SpellStatus_both_get {
+				newStatus = SpellStatus_right_get
 			} else {
 				newStatus = status
 			}
@@ -329,7 +329,7 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 			return nil, st, errors.New("选卡已结束")
 		}
 		switch status {
-		case SpellStatus_right_select:
+		case SpellStatus_right_get:
 			for _, idx1 := range r.room.LinkData.LinkIdxB {
 				if idx1 == idx {
 					return nil, st, errors.New("已经选了这张卡")
@@ -346,14 +346,14 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 					return nil, st, errors.New("不合理的选卡")
 				}
 			}
-			if st == SpellStatus_left_select {
-				newStatus = SpellStatus_both_select
+			if st == SpellStatus_left_get {
+				newStatus = SpellStatus_both_get
 			} else {
 				newStatus = status
 			}
 		case SpellStatus_none:
-			if st == SpellStatus_both_select {
-				newStatus = SpellStatus_left_select
+			if st == SpellStatus_both_get {
+				newStatus = SpellStatus_left_get
 			} else {
 				newStatus = status
 			}
