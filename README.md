@@ -1,9 +1,9 @@
 # bingo-server
 
-![](https://img.shields.io/github/languages/top/Touhou-Freshman-Camp/bingo-server "语言")
-[![](https://img.shields.io/github/actions/workflow/status/Touhou-Freshman-Camp/bingo-server/golangci-lint.yml?branch=master)](https://github.com/Touhou-Freshman-Camp/bingo-server/actions/workflows/golangci-lint.yml "代码分析")
-[![](https://img.shields.io/github/contributors/Touhou-Freshman-Camp/bingo-server)](https://github.com/Touhou-Freshman-Camp/bingo-server/graphs/contributors "贡献者")
-[![](https://img.shields.io/github/license/Touhou-Freshman-Camp/bingo-server)](https://github.com/Touhou-Freshman-Camp/bingo-server/blob/master/LICENSE "许可协议")
+![](https://img.shields.io/github/go-mod/go-version/CuteReimu/bingo-server "语言")
+[![](https://img.shields.io/github/actions/workflow/status/CuteReimu/bingo-server/golangci-lint.yml?branch=master)](https://github.com/CuteReimu/bingo-server/actions/workflows/golangci-lint.yml "代码分析")
+[![](https://img.shields.io/github/contributors/CuteReimu/bingo-server)](https://github.com/CuteReimu/bingo-server/graphs/contributors "贡献者")
+[![](https://img.shields.io/github/license/CuteReimu/bingo-server)](https://github.com/CuteReimu/bingo-server/blob/master/LICENSE "许可协议")
 
 ## 协议
 
