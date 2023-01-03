@@ -323,6 +323,7 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 		default:
 			return nil, st, errors.New("权限不足")
 		}
+		room.LinkData.LinkIdxA = append(room.LinkData.LinkIdxA, idx)
 		tokens = append(tokens, room.Players[0])
 	case room.Players[1]:
 		if r.room.LinkData.FinishSelect {
@@ -360,7 +361,8 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 		default:
 			return nil, st, errors.New("权限不足")
 		}
-		tokens = append(tokens, room.Players[0])
+		room.LinkData.LinkIdxB = append(room.LinkData.LinkIdxB, idx)
+		tokens = append(tokens, room.Players[1])
 	}
 	return
 }
