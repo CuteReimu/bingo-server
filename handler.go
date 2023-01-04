@@ -848,15 +848,37 @@ func (m *LinkTimeCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName 
 		}
 		if m.Whose == 0 {
 			if m.Start {
-				data.StartMsA = time.Now().UnixMilli()
+				if data.StartMsA == 0 && data.EndMsA == 0 { // 开始
+					data.StartMsA = time.Now().UnixMilli()
+				} else if data.StartMsA > 0 && data.EndMsA > 0 { // 继续
+					data.StartMsA = time.Now().UnixMilli() - (data.EndMsA - data.StartMsA)
+					data.EndMsA = 0
+				} else {
+					return errors.New("已经在计时了，不能开始")
+				}
 			} else {
-				data.EndMsA = time.Now().UnixMilli()
+				if data.StartMsA > 0 && data.EndMsA == 0 { // 停止/暂停
+					data.EndMsA = time.Now().UnixMilli()
+				} else {
+					return errors.New("还未开始计时，不能停止")
+				}
 			}
 		} else {
 			if m.Start {
-				data.StartMsB = time.Now().UnixMilli()
+				if data.StartMsB == 0 && data.EndMsB == 0 { // 开始
+					data.StartMsB = time.Now().UnixMilli()
+				} else if data.StartMsB > 0 && data.EndMsB > 0 { // 继续
+					data.StartMsB = time.Now().UnixMilli() - (data.EndMsB - data.StartMsB)
+					data.EndMsB = 0
+				} else {
+					return errors.New("已经在计时了，不能开始")
+				}
 			} else {
-				data.EndMsB = time.Now().UnixMilli()
+				if data.StartMsB > 0 && data.EndMsB == 0 { // 停止/暂停
+					data.EndMsB = time.Now().UnixMilli()
+				} else {
+					return errors.New("还未开始计时，不能停止")
+				}
 			}
 		}
 		message = (*LinkDataSc)(data)
