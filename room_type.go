@@ -279,7 +279,7 @@ func (r RoomTypeLink) RandSpells(games, ranks []string) ([]*Spell, error) {
 func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
 	room := r.room
 	st := room.Status[idx]
-	if status == SpellStatus_banned || status.isSelectStatus() {
+	if status == SpellStatus_banned {
 		return nil, st, errors.New("不支持的操作")
 	}
 	tokens = append(tokens, room.Host)
