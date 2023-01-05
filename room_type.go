@@ -284,11 +284,9 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 	if status == SpellStatus_banned {
 		return nil, st, errors.New("不支持的操作")
 	}
-	tokens = append(tokens, room.Host)
 	switch token {
 	case room.Host:
 		newStatus = status
-		tokens = append(tokens, room.Players...)
 	case room.Players[0]:
 		if (room.LinkData.StartMsA > 0 || room.LinkData.StartMsB > 0) && room.LinkData.LinkIdxA[len(room.LinkData.LinkIdxA)-1] == 24 {
 			return nil, st, errors.New("选卡已结束")
@@ -333,7 +331,6 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 		default:
 			return nil, st, errors.New("权限不足")
 		}
-		tokens = append(tokens, room.Players[0])
 	case room.Players[1]:
 		if (room.LinkData.StartMsA > 0 || room.LinkData.StartMsB > 0) && room.LinkData.LinkIdxB[len(room.LinkData.LinkIdxB)-1] == 20 {
 			return nil, st, errors.New("选卡已结束")
@@ -378,7 +375,8 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 		default:
 			return nil, st, errors.New("权限不足")
 		}
-		tokens = append(tokens, room.Players[1])
 	}
+	tokens = append(tokens, room.Host)
+	tokens = append(tokens, room.Players...)
 	return
 }
