@@ -269,7 +269,9 @@ func (r RoomTypeLink) CanPause() bool {
 }
 
 func (r RoomTypeLink) OnStart() {
-	r.room.LinkData = &LinkData{}
+	r.room.Status[0] = SpellStatus_left_select
+	r.room.Status[4] = SpellStatus_right_select
+	r.room.LinkData = &LinkData{LinkIdxA: []uint32{0}, LinkIdxB: []uint32{4}}
 }
 
 func (r RoomTypeLink) RandSpells(games, ranks []string) ([]*Spell, error) {
@@ -316,6 +318,12 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 			}
 			room.LinkData.LinkIdxA = append(room.LinkData.LinkIdxA, idx)
 		case SpellStatus_none:
+			if len(room.LinkData.LinkIdxA) <= 1 {
+				return nil, st, errors.New("初始选卡不能删除")
+			}
+			if room.LinkData.LinkIdxA[len(room.LinkData.LinkIdxA)-1] != idx {
+				return nil, st, errors.New("只能删除最后一张卡")
+			}
 			if st == SpellStatus_both_select {
 				newStatus = SpellStatus_right_select
 			} else {
@@ -355,6 +363,12 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 			}
 			room.LinkData.LinkIdxB = append(room.LinkData.LinkIdxB, idx)
 		case SpellStatus_none:
+			if len(room.LinkData.LinkIdxB) <= 1 {
+				return nil, st, errors.New("初始选卡不能删除")
+			}
+			if room.LinkData.LinkIdxB[len(room.LinkData.LinkIdxB)-1] != idx {
+				return nil, st, errors.New("只能删除最后一张卡")
+			}
 			if st == SpellStatus_both_select {
 				newStatus = SpellStatus_left_select
 			} else {
