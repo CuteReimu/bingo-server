@@ -290,7 +290,7 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 		newStatus = status
 		tokens = append(tokens, room.Players...)
 	case room.Players[0]:
-		if r.room.LinkData.FinishSelect {
+		if (room.LinkData.StartMsA > 0 || room.LinkData.StartMsB > 0) && room.LinkData.LinkIdxA[len(room.LinkData.LinkIdxA)-1] == 24 {
 			return nil, st, errors.New("选卡已结束")
 		}
 		switch status {
@@ -300,12 +300,12 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 					return nil, st, errors.New("已经选了这张卡")
 				}
 			}
-			if len(r.room.LinkData.LinkIdxA) == 0 {
+			if len(room.LinkData.LinkIdxA) == 0 {
 				if idx != 0 {
 					return nil, st, errors.New("不合理的选卡")
 				}
 			} else {
-				idx0 := r.room.LinkData.LinkIdxA[len(r.room.LinkData.LinkIdxA)-1]
+				idx0 := room.LinkData.LinkIdxA[len(room.LinkData.LinkIdxA)-1]
 				diff := int32(idx) - int32(idx0)
 				if idx0 == 24 || diff != -6 && diff != -5 && diff != -4 && diff != -1 && diff != 1 && diff != 4 && diff != 5 && diff != 6 {
 					return nil, st, errors.New("不合理的选卡")
@@ -335,7 +335,7 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 		}
 		tokens = append(tokens, room.Players[0])
 	case room.Players[1]:
-		if r.room.LinkData.FinishSelect {
+		if (room.LinkData.StartMsA > 0 || room.LinkData.StartMsB > 0) && room.LinkData.LinkIdxB[len(room.LinkData.LinkIdxB)-1] == 20 {
 			return nil, st, errors.New("选卡已结束")
 		}
 		switch status {
@@ -345,12 +345,12 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 					return nil, st, errors.New("已经选了这张卡")
 				}
 			}
-			if len(r.room.LinkData.LinkIdxB) == 0 {
+			if len(room.LinkData.LinkIdxB) == 0 {
 				if idx != 4 {
 					return nil, st, errors.New("不合理的选卡")
 				}
 			} else {
-				idx0 := r.room.LinkData.LinkIdxB[len(r.room.LinkData.LinkIdxB)-1]
+				idx0 := room.LinkData.LinkIdxB[len(room.LinkData.LinkIdxB)-1]
 				diff := int32(idx) - int32(idx0)
 				if idx0 == 20 || diff != -6 && diff != -5 && diff != -4 && diff != -1 && diff != 1 && diff != 4 && diff != 5 && diff != 6 {
 					return nil, st, errors.New("不合理的选卡")

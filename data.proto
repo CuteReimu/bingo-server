@@ -39,7 +39,8 @@ message bp_data {
 message link_data {
   repeated uint32 link_idx_a = 1;
   repeated uint32 link_idx_b = 2;
-  bool finish_select = 3;
+  reserved 3;
+  reserved "finish_select";
   int64 start_ms_a = 4;
   int64 end_ms_a = 5;
   int64 start_ms_b = 6;

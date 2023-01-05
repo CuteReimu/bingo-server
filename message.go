@@ -41,7 +41,6 @@ func init() {
 	initMessage(c, (*PauseSc)(nil))
 	initMessage(c, (*NextRoundCs)(nil))
 	initMessage(c, (*NextRoundSc)(nil))
-	initMessage(c, (*FinishSelectSpellCs)(nil))
 	initMessage(c, (*LinkTimeCs)(nil))
 	initMessage(c, (*LinkDataSc)(nil))
 }
@@ -286,14 +285,6 @@ type NextRoundSc struct {
 }
 
 func (m *NextRoundSc) String() string {
-	buf, _ := json.Marshal(m)
-	return string(buf)
-}
-
-type FinishSelectSpellCs struct {
-}
-
-func (m *FinishSelectSpellCs) String() string {
 	buf, _ := json.Marshal(m)
 	return string(buf)
 }
