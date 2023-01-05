@@ -62,5 +62,5 @@ enum spell_status {
   left_get = 5;
   right_get = 7;
   both_select = 2;
-  both_get = 4;
+  both_get = 6;
 }
