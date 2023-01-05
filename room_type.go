@@ -314,16 +314,17 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 			} else {
 				newStatus = status
 			}
+			room.LinkData.LinkIdxA = append(room.LinkData.LinkIdxA, idx)
 		case SpellStatus_none:
 			if st == SpellStatus_both_select {
 				newStatus = SpellStatus_right_select
 			} else {
 				newStatus = status
 			}
+			room.LinkData.LinkIdxA = room.LinkData.LinkIdxA[:len(room.LinkData.LinkIdxA)-1]
 		default:
 			return nil, st, errors.New("权限不足")
 		}
-		room.LinkData.LinkIdxA = append(room.LinkData.LinkIdxA, idx)
 		tokens = append(tokens, room.Players[0])
 	case room.Players[1]:
 		if r.room.LinkData.FinishSelect {
@@ -352,16 +353,17 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 			} else {
 				newStatus = status
 			}
+			room.LinkData.LinkIdxB = append(room.LinkData.LinkIdxB, idx)
 		case SpellStatus_none:
 			if st == SpellStatus_both_select {
 				newStatus = SpellStatus_left_select
 			} else {
 				newStatus = status
 			}
+			room.LinkData.LinkIdxB = room.LinkData.LinkIdxB[:len(room.LinkData.LinkIdxB)-1]
 		default:
 			return nil, st, errors.New("权限不足")
 		}
-		room.LinkData.LinkIdxB = append(room.LinkData.LinkIdxB, idx)
 		tokens = append(tokens, room.Players[1])
 	}
 	return
