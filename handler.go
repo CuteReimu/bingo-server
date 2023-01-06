@@ -391,6 +391,7 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 	startTime := time.Now().UnixMilli()
 	var spells []*Spell
 	var whoseTurn, banPick int32
+	var linkData *LinkData
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
 		if err != nil {
@@ -436,6 +437,7 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 			whoseTurn = room.BpData.WhoseTurn
 			banPick = room.BpData.BanPick
 		}
+		linkData = room.LinkData
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -451,6 +453,7 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 			NeedWin:   needWin,
 			WhoseTurn: whoseTurn,
 			BanPick:   banPick,
+			Link:      linkData,
 		},
 	}
 	s.NotifyPlayersInRoom(token, protoName, message)
