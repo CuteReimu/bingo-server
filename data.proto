@@ -27,6 +27,7 @@ message room {
   int32 last_winner = 17; // 上一场是谁赢，1或2
   bp_data bp_data = 18;
   link_data link_data = 19;
+  int32 phase = 20; // 纯客户端用，服务器只记录
 }
 
 message bp_data {

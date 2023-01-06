@@ -851,3 +851,29 @@ func (m *LinkTimeCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName 
 	s.NotifyPlayersInRoom(token, protoName, &myws.Message{Data: message})
 	return nil
 }
+
+func (m *SetPhaseCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName string) error {
+	err := db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Host != token {
+			return errors.New("你不是房主")
+		}
+		room.Phase = m.Phase
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	s.NotifyPlayersInRoom(token, protoName, &myws.Message{Data: &SetPhaseSc{Phase: m.Phase}})
+	return nil
+}

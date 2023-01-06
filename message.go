@@ -43,6 +43,8 @@ func init() {
 	initMessage(c, (*NextRoundSc)(nil))
 	initMessage(c, (*LinkTimeCs)(nil))
 	initMessage(c, (*LinkDataSc)(nil))
+	initMessage(c, (*SetPhaseCs)(nil))
+	initMessage(c, (*SetPhaseSc)(nil))
 }
 
 func initMessage(c cellnet.Codec, i interface{}) {
@@ -187,6 +189,7 @@ type SpellListSc struct {
 	TotalPauseTime int64     `json:"total_pause_time,omitempty"`
 	PauseBeginMs   int64     `json:"pause_begin_ms,omitempty"`
 	Status         []int32   `json:"status,omitempty"`
+	Phase          int32     `json:"phase"`
 	Link           *LinkData `json:"link_data,omitempty"`
 }
 
@@ -302,6 +305,24 @@ func (m *LinkTimeCs) String() string {
 type LinkDataSc LinkData
 
 func (m *LinkDataSc) String() string {
+	buf, _ := json.Marshal(m)
+	return string(buf)
+}
+
+type SetPhaseCs struct {
+	Phase int32 `json:"phase"`
+}
+
+func (m *SetPhaseCs) String() string {
+	buf, _ := json.Marshal(m)
+	return string(buf)
+}
+
+type SetPhaseSc struct {
+	Phase int32 `json:"phase"`
+}
+
+func (m *SetPhaseSc) String() string {
 	buf, _ := json.Marshal(m)
 	return string(buf)
 }
