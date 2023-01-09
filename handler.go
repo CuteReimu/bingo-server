@@ -298,7 +298,7 @@ func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, pro
 	var status []int32
 	var needWin uint32
 	var totalPauseMs, pauseBeginMs int64
-	var whoseTurn, banPick int32
+	var whoseTurn, banPick, phase int32
 	var linkData *LinkData
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
@@ -336,6 +336,7 @@ func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, pro
 			banPick = room.BpData.BanPick
 		}
 		linkData = room.LinkData
+		phase = room.Phase
 		return nil
 	})
 	if err != nil {
@@ -356,6 +357,7 @@ func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, pro
 			PauseBeginMs:   pauseBeginMs,
 			Status:         status,
 			Link:           linkData,
+			Phase:          phase,
 		},
 	})
 	return nil
@@ -390,7 +392,7 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 	}
 	startTime := time.Now().UnixMilli()
 	var spells []*Spell
-	var whoseTurn, banPick int32
+	var whoseTurn, banPick, phase int32
 	var linkData *LinkData
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
@@ -438,6 +440,7 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 			banPick = room.BpData.BanPick
 		}
 		linkData = room.LinkData
+		phase = room.Phase
 		return SetRoom(txn, room)
 	})
 	if err != nil {
@@ -454,6 +457,7 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 			WhoseTurn: whoseTurn,
 			BanPick:   banPick,
 			Link:      linkData,
+			Phase:     phase,
 		},
 	}
 	s.NotifyPlayersInRoom(token, protoName, message)
