@@ -11,7 +11,7 @@ require (
 	github.com/ozgio/strutil v0.4.0
 	github.com/pkg/errors v0.9.1
 	github.com/tidwall/gjson v1.14.4
-	github.com/xuri/excelize/v2 v2.6.1
+	github.com/xuri/excelize/v2 v2.7.0
 	golang.org/x/time v0.3.0
 	google.golang.org/protobuf v1.28.1
 )
@@ -40,8 +40,8 @@ require (
 	github.com/xuri/efp v0.0.0-20220603152613-6918739fd470 // indirect
 	github.com/xuri/nfp v0.0.0-20220409054826-5e722a1d9e22 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/crypto v0.4.0 // indirect
-	golang.org/x/net v0.4.0 // indirect
-	golang.org/x/sys v0.3.0 // indirect
-	golang.org/x/text v0.5.0 // indirect
+	golang.org/x/crypto v0.5.0 // indirect
+	golang.org/x/net v0.5.0 // indirect
+	golang.org/x/sys v0.4.0 // indirect
+	golang.org/x/text v0.6.0 // indirect
 )
