@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+//go:generate protoc --proto_path=. --go_out=. data.proto
+
 type MessageHandler interface {
 	Handle(s *bingoServer, session cellnet.Session, token, protoName string) error
 }
