@@ -1,10 +1,9 @@
 package main
 
 import (
+	"github.com/pkg/errors"
 	"math/rand"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 type RoomStartHandler interface {

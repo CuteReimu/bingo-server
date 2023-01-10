@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/xuri/excelize/v2"
+	"golang.org/x/exp/slices"
 	"math/rand"
 	"os"
 	"strconv"
@@ -37,21 +38,7 @@ func RandSpells(games []string, ranks []string, spellCounts [3]int) ([]*Spell, e
 					if err != nil {
 						return nil, errors.WithStack(err)
 					}
-					inGame := func() bool {
-						for _, g := range games {
-							if g == strings.TrimSpace(row[1]) {
-								return true
-							}
-						}
-						return false
-					}() && ranks == nil || func() bool {
-						for _, r := range ranks {
-							if r == strings.TrimSpace(row[5]) {
-								return true
-							}
-						}
-						return false
-					}()
+					inGame := slices.Contains(games, strings.TrimSpace(row[1])) && (ranks == nil || slices.Contains(ranks, strings.TrimSpace(row[5])))
 					if star > 0 && star <= 3 && inGame {
 						spells[star-1] = append(spells[star-1], &Spell{
 							Game: row[1],
@@ -131,21 +118,7 @@ func RandSpells2(games []string, ranks []string, spellCounts [3]int) ([]*Spell, 
 					if err != nil {
 						return nil, errors.WithStack(err)
 					}
-					inGame := func() bool {
-						for _, g := range games {
-							if g == strings.TrimSpace(row[1]) {
-								return true
-							}
-						}
-						return false
-					}() && ranks == nil || func() bool {
-						for _, r := range ranks {
-							if r == strings.TrimSpace(row[5]) {
-								return true
-							}
-						}
-						return false
-					}()
+					inGame := slices.Contains(games, strings.TrimSpace(row[1])) && (ranks == nil || slices.Contains(ranks, strings.TrimSpace(row[5])))
 					if star > 0 && star <= 3 && inGame {
 						spells[star-1] = append(spells[star-1], &Spell{
 							Game: row[1],

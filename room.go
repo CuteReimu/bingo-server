@@ -1,11 +1,11 @@
 package main
 
 import (
-	"time"
-
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/proto"
+	"time"
 )
 
 func GetRoom(txn *badger.Txn, roomId string) (*Room, error) {
@@ -60,14 +60,7 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (*RoomInfoSc, []string, error) {
 				return nil, nil, err
 			}
 			players[i] = player.Name
-			if func() bool {
-				for _, token := range tokens {
-					if token == player.Token {
-						return false
-					}
-				}
-				return true
-			}() {
+			if !slices.Contains(tokens, player.Token) {
 				tokens = append(tokens, player.Token)
 			}
 		}

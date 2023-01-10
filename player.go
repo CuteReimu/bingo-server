@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
+	"github.com/CuteReimu/bingo-server/myws"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"

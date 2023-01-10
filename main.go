@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
+	"github.com/CuteReimu/bingo-server/myws"
 	"github.com/davyxu/cellnet"
 	"github.com/davyxu/cellnet/msglog"
 	"github.com/davyxu/cellnet/peer"

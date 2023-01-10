@@ -1,6 +1,6 @@
-module github.com/Touhou-Freshman-Camp/bingo-server
+module github.com/CuteReimu/bingo-server
 
-go 1.17
+go 1.19
 
 require (
 	github.com/davyxu/cellnet v4.1.0+incompatible
@@ -12,6 +12,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/tidwall/gjson v1.14.4
 	github.com/xuri/excelize/v2 v2.7.0
+	golang.org/x/exp v0.0.0-20230108222341-4b8118a2686a
 	golang.org/x/time v0.3.0
 	google.golang.org/protobuf v1.28.1
 )
@@ -27,10 +28,9 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/flatbuffers v22.11.23+incompatible // indirect
-	github.com/google/go-cmp v0.5.7 // indirect
+	github.com/google/flatbuffers/go v0.0.0-20230109183250-ca6381bcc84f // indirect
 	github.com/jonboulle/clockwork v0.3.0 // indirect
-	github.com/klauspost/compress v1.15.13 // indirect
+	github.com/klauspost/compress v1.15.14 // indirect
 	github.com/lestrrat-go/strftime v1.0.6 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/richardlehane/mscfb v1.0.4 // indirect

@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	_ "github.com/Touhou-Freshman-Camp/bingo-server/myws"
+	_ "github.com/CuteReimu/bingo-server/myws"
 	"github.com/davyxu/cellnet"
 	"github.com/davyxu/cellnet/codec"
 	"github.com/davyxu/cellnet/msglog"
@@ -47,7 +47,7 @@ func init() {
 	initMessage(c, (*SetPhaseSc)(nil))
 }
 
-func initMessage(c cellnet.Codec, i interface{}) {
+func initMessage(c cellnet.Codec, i any) {
 	t := reflect.TypeOf(i).Elem()
 	name := strings.Replace(t.Name(), "Msg", "", 1)
 	name = strutil.ToSnakeCase(strings.Join(strutil.SplitCamelCase(name), " "))

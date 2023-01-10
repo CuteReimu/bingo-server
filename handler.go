@@ -1,12 +1,12 @@
 package main
 
 import (
+	"github.com/CuteReimu/bingo-server/myws"
 	"github.com/davyxu/cellnet"
-	"time"
-
-	"github.com/Touhou-Freshman-Camp/bingo-server/myws"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
+	"time"
 )
 
 func (m *NextRoundCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName string) error {
@@ -410,14 +410,7 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 			return errors.New("你不是房主")
 		} else if room.Started {
 			return errors.New("游戏已经开始")
-		} else if func() bool {
-			for _, p := range room.Players {
-				if len(p) == 0 {
-					return true
-				}
-			}
-			return false
-		}() {
+		} else if slices.ContainsFunc(room.Players, func(s string) bool { return len(s) == 0 }) {
 			return errors.New("玩家没满")
 		}
 		spells, err = room.Type().RandSpells(games, ranks)
