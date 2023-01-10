@@ -11,6 +11,7 @@ import (
 type Message struct {
 	MsgName string      `json:"name"`
 	Reply   string      `json:"reply,omitempty"`
+	Trigger string      `json:"trigger,omitempty"`
 	Data    interface{} `json:"data,omitempty"`
 }
 

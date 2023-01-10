@@ -16,6 +16,7 @@ func (s *bingoServer) buildPlayerInfo(token string) (*myws.Message, []string, er
 		if err != nil {
 			return err
 		}
+		message.Trigger = player.Name
 		if len(player.RoomId) == 0 {
 			return nil
 		}
@@ -41,13 +42,13 @@ func (s *bingoServer) buildPlayerInfo(token string) (*myws.Message, []string, er
 	return message, tokens, nil
 }
 
-func (s *bingoServer) getAllPlayersInRoom(token string) ([]string, error) {
-	var tokens []string
-	err := db.View(func(txn *badger.Txn) error {
+func (s *bingoServer) getAllPlayersInRoom(token string) (trigger string, tokens []string, err error) {
+	err = db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
 		if err != nil {
 			return err
 		}
+		trigger = player.Name
 		if len(player.RoomId) == 0 {
 			return nil
 		}
@@ -61,9 +62,9 @@ func (s *bingoServer) getAllPlayersInRoom(token string) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	return tokens, nil
+	return trigger, tokens, nil
 }
 
 func (s *bingoServer) NotifyPlayerInfo(token, reply string, winnerIdx ...int32) {
@@ -82,6 +83,7 @@ func (s *bingoServer) NotifyPlayerInfo(token, reply string, winnerIdx ...int32) 
 					conn.Send(&myws.Message{
 						MsgName: message.MsgName,
 						Reply:   reply,
+						Trigger: message.Trigger,
 						Data:    message.Data,
 					})
 				}
@@ -91,7 +93,8 @@ func (s *bingoServer) NotifyPlayerInfo(token, reply string, winnerIdx ...int32) 
 }
 
 func (s *bingoServer) NotifyPlayersInRoom(token, reply string, message *myws.Message) {
-	tokens, err := s.getAllPlayersInRoom(token)
+	trigger, tokens, err := s.getAllPlayersInRoom(token)
+	message.Trigger = trigger
 	if err != nil {
 		log.Errorf("db error: %+v", err)
 	} else {
@@ -101,8 +104,9 @@ func (s *bingoServer) NotifyPlayersInRoom(token, reply string, message *myws.Mes
 					conn.Send(message)
 				} else {
 					conn.Send(&myws.Message{
-						Reply: reply,
-						Data:  message.Data,
+						Reply:   reply,
+						Trigger: trigger,
+						Data:    message.Data,
 					})
 				}
 			}
