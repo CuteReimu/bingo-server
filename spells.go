@@ -164,7 +164,7 @@ func RandSpells2(games []string, ranks []string, spellCounts [3]int) ([]*Spell, 
 	result[8] = spells01[3]
 	result[16] = spells01[4]
 	result[18] = spells01[5]
-	spells01 = append(spells01[6:], spells[2][3:]...)
+	spells01 = append(spells01[6:], spells[2][3:spellCounts[2]]...)
 	r.Shuffle(len(spells01), func(i, j int) { spells01[i], spells01[j] = spells01[j], spells01[i] })
 	j := 0
 	for i := range result {
