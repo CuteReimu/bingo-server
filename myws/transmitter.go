@@ -73,9 +73,14 @@ func (WSMessageTransmitter) OnSendMessage(ses cellnet.Session, msg interface{}) 
 			pkt = append(pkt, []byte(m.MsgName)...)
 		}
 		pkt = append(pkt, '"')
-		if len(m.Reply) != 0 {
+		if len(m.Reply) > 0 {
 			pkt = append(pkt, []byte(`,"reply":"`)...)
 			pkt = append(pkt, []byte(m.Reply)...)
+			pkt = append(pkt, '"')
+		}
+		if len(m.Trigger) > 0 {
+			pkt = append(pkt, []byte(`,"trigger":"`)...)
+			pkt = append(pkt, []byte(m.Trigger)...)
 			pkt = append(pkt, '"')
 		}
 		if len(buf) > 0 {
