@@ -527,6 +527,8 @@ func (m *UpdateRoomTypeCs) Handle(s *bingoServer, _ cellnet.Session, token, prot
 }
 
 func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName string) error {
+	var tokens []string
+	var roomDestroyed bool
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
 		if err != nil {
@@ -552,6 +554,7 @@ func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		if room.Host == player.Token {
 			for i := range room.Players {
 				if len(room.Players[i]) != 0 && room.Players[i] != room.Host {
+					tokens = append(tokens, room.Players[i])
 					p, err := GetPlayer(txn, room.Players[i])
 					if err != nil {
 						return err
@@ -567,10 +570,13 @@ func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 			if err = DelRoom(txn, room.RoomId); err != nil {
 				return err
 			}
+			roomDestroyed = true
 		} else {
 			for i := range room.Players {
 				if room.Players[i] == player.Token {
 					room.Players[i] = ""
+				} else {
+					tokens = append(tokens, room.Players[i])
 				}
 			}
 			err = SetRoom(txn, room)
@@ -583,7 +589,30 @@ func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 	if err != nil {
 		return err
 	}
-	s.NotifyPlayerInfo(token, protoName)
+	s.NotifyPlayerInfo(token, protoName) // 已经退出了，所以这里只能通知到自己
+	// 需要再通知房间里的其他人
+	var message *myws.Message
+	for _, t := range tokens {
+		conn := s.tokenConnMap[t]
+		if conn != nil {
+			if roomDestroyed {
+				conn.Send(&myws.Message{
+					Trigger: token,
+					Data:    &RoomInfoSc{},
+				})
+			} else {
+				if message == nil {
+					message, _, err = s.buildPlayerInfo(t)
+					if err != nil {
+						log.Errorf("db error: %+v", err)
+						message.Trigger = token
+						break
+					}
+				}
+				conn.Send(message)
+			}
+		}
+	}
 	return nil
 }
 
