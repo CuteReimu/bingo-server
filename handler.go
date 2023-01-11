@@ -188,11 +188,13 @@ func (m *UpdateSpellCs) Handle(s *bingoServer, _ cellnet.Session, token, protoNa
 	var newStatus SpellStatus
 	var tokens []string
 	var whoseTurn, banPick int32
+	var trigger string
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
 		if err != nil {
 			return err
 		}
+		trigger = player.Name
 		if len(player.RoomId) == 0 {
 			return errors.New("不在房间里")
 		}
@@ -221,6 +223,8 @@ func (m *UpdateSpellCs) Handle(s *bingoServer, _ cellnet.Session, token, protoNa
 		if len(token1) > 0 {
 			if conn, ok := s.tokenConnMap[token1]; ok {
 				message := &myws.Message{
+					Reply:   protoName,
+					Trigger: trigger,
 					Data: &UpdateSpellSc{
 						Idx:       idx,
 						Status:    newStatus,
@@ -300,11 +304,13 @@ func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, pro
 	var totalPauseMs, pauseBeginMs int64
 	var whoseTurn, banPick, phase int32
 	var linkData *LinkData
+	var trigger string
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
 		if err != nil {
 			return err
 		}
+		trigger = player.Name
 		if len(player.RoomId) == 0 {
 			return errors.New("不在房间里")
 		}
@@ -343,7 +349,8 @@ func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, pro
 		return err
 	}
 	session.Send(&myws.Message{
-		Reply: protoName,
+		Reply:   protoName,
+		Trigger: trigger,
 		Data: &SpellListSc{
 			Spells:         spells,
 			Time:           time.Now().UnixMilli(),
@@ -394,11 +401,13 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 	var spells []*Spell
 	var whoseTurn, banPick, phase int32
 	var linkData *LinkData
+	var trigger string
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
 		if err != nil {
 			return err
 		}
+		trigger = player.Name
 		if len(player.RoomId) == 0 {
 			return errors.New("不在房间里")
 		}
@@ -440,6 +449,8 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		return err
 	}
 	message := &myws.Message{
+		Reply:   protoName,
+		Trigger: trigger,
 		Data: &SpellListSc{
 			Spells:    spells,
 			Time:      startTime,
