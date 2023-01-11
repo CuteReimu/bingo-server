@@ -449,7 +449,6 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		return err
 	}
 	message := &myws.Message{
-		Reply:   protoName,
 		Trigger: trigger,
 		Data: &SpellListSc{
 			Spells:    spells,
