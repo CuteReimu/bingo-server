@@ -527,8 +527,6 @@ func (m *UpdateRoomTypeCs) Handle(s *bingoServer, _ cellnet.Session, token, prot
 }
 
 func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName string) error {
-	var tokens []string
-	var roomDestroyed bool
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
 		if err != nil {
@@ -554,7 +552,6 @@ func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		if room.Host == player.Token {
 			for i := range room.Players {
 				if len(room.Players[i]) != 0 && room.Players[i] != room.Host {
-					tokens = append(tokens, room.Players[i])
 					p, err := GetPlayer(txn, room.Players[i])
 					if err != nil {
 						return err
@@ -570,13 +567,10 @@ func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 			if err = DelRoom(txn, room.RoomId); err != nil {
 				return err
 			}
-			roomDestroyed = true
 		} else {
 			for i := range room.Players {
 				if room.Players[i] == player.Token {
 					room.Players[i] = ""
-				} else {
-					tokens = append(tokens, room.Players[i])
 				}
 			}
 			err = SetRoom(txn, room)
@@ -590,17 +584,6 @@ func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		return err
 	}
 	s.NotifyPlayerInfo(token, protoName)
-	for _, token := range tokens {
-		conn := s.tokenConnMap[token]
-		if conn != nil {
-			if roomDestroyed {
-				conn.Send(&myws.Message{Data: &RoomInfoSc{}})
-			} else {
-				s.NotifyPlayerInfo(token, "")
-				break
-			}
-		}
-	}
 	return nil
 }
 
