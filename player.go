@@ -104,6 +104,7 @@ func (s *bingoServer) NotifyPlayersInRoom(token, reply string, message *myws.Mes
 					conn.Send(message)
 				} else {
 					conn.Send(&myws.Message{
+						MsgName: message.MsgName,
 						Reply:   reply,
 						Trigger: trigger,
 						Data:    message.Data,
