@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
 	"math/rand"
 	"time"
 )
@@ -292,21 +293,13 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 		}
 		switch status {
 		case SpellStatus_left_select:
-			for _, idx1 := range r.room.LinkData.LinkIdxA {
-				if idx1 == idx {
-					return nil, st, errors.New("已经选了这张卡")
-				}
+			if slices.Contains(r.room.LinkData.LinkIdxA, idx) {
+				return nil, st, errors.New("已经选了这张卡")
 			}
-			if len(room.LinkData.LinkIdxA) == 0 {
-				if idx != 0 {
-					return nil, st, errors.New("不合理的选卡")
-				}
-			} else {
-				idx0 := room.LinkData.LinkIdxA[len(room.LinkData.LinkIdxA)-1]
-				diff := int32(idx) - int32(idx0)
-				if idx0 == 24 || diff != -6 && diff != -5 && diff != -4 && diff != -1 && diff != 1 && diff != 4 && diff != 5 && diff != 6 {
-					return nil, st, errors.New("不合理的选卡")
-				}
+			idx0 := room.LinkData.LinkIdxA[len(room.LinkData.LinkIdxA)-1]
+			diff := int32(idx) - int32(idx0)
+			if idx0 == 24 || diff != -6 && diff != -5 && diff != -4 && diff != -1 && diff != 1 && diff != 4 && diff != 5 && diff != 6 {
+				return nil, st, errors.New("不合理的选卡")
 			}
 			if st == SpellStatus_right_select {
 				newStatus = SpellStatus_both_select
@@ -336,21 +329,13 @@ func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellSt
 		}
 		switch status {
 		case SpellStatus_right_select:
-			for _, idx1 := range r.room.LinkData.LinkIdxB {
-				if idx1 == idx {
-					return nil, st, errors.New("已经选了这张卡")
-				}
+			if slices.Contains(r.room.LinkData.LinkIdxB, idx) {
+				return nil, st, errors.New("已经选了这张卡")
 			}
-			if len(room.LinkData.LinkIdxB) == 0 {
-				if idx != 4 {
-					return nil, st, errors.New("不合理的选卡")
-				}
-			} else {
-				idx0 := room.LinkData.LinkIdxB[len(room.LinkData.LinkIdxB)-1]
-				diff := int32(idx) - int32(idx0)
-				if idx0 == 20 || diff != -6 && diff != -5 && diff != -4 && diff != -1 && diff != 1 && diff != 4 && diff != 5 && diff != 6 {
-					return nil, st, errors.New("不合理的选卡")
-				}
+			idx0 := room.LinkData.LinkIdxB[len(room.LinkData.LinkIdxB)-1]
+			diff := int32(idx) - int32(idx0)
+			if idx0 == 20 || diff != -6 && diff != -5 && diff != -4 && diff != -1 && diff != 1 && diff != 4 && diff != 5 && diff != 6 {
+				return nil, st, errors.New("不合理的选卡")
 			}
 			if st == SpellStatus_left_select {
 				newStatus = SpellStatus_both_select
