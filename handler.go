@@ -77,7 +77,7 @@ func (m *PauseCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName str
 		if !room.Started {
 			return errors.New("游戏还没开始，不能暂停")
 		}
-		if room.StartMs <= now-int64(room.GameTime)*60000-int64(room.Countdown)*1000-room.TotalPauseMs {
+		if pause && room.StartMs <= now-int64(room.GameTime)*60000-int64(room.Countdown)*1000-room.TotalPauseMs {
 			return errors.New("游戏时间到，不能暂停")
 		}
 		if room.StartMs > now-int64(room.Countdown)*1000 {
