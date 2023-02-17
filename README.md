@@ -5,6 +5,8 @@
 [![](https://img.shields.io/github/contributors/CuteReimu/bingo-server)](https://github.com/CuteReimu/bingo-server/graphs/contributors "贡献者")
 [![](https://img.shields.io/github/license/CuteReimu/bingo-server)](https://github.com/CuteReimu/bingo-server/blob/master/LICENSE "许可协议")
 
+本项目已迁移至 https://github.com/CuteReimu/th-bingo
+
 ## 协议
 
 ***因为协议会频繁更改，所以下行协议请暂时不要参照此表格***
