@@ -213,7 +213,7 @@ func (m *UpdateSpellCs) Handle(s *bingoServer, _ cellnet.Session, token, protoNa
 			return err
 		}
 		room.Status[idx] = newStatus
-		if playerIndex := slices.Index(room.Players, token); playerIndex >= 0 && status.isSelectStatus() {
+		if playerIndex := slices.Index(room.Players, token); playerIndex >= 0 && status.isGetStatus() {
 			room.LastGetTime[playerIndex] = now
 		}
 		if room.BpData != nil {
