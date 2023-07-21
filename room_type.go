@@ -1,10 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
 	"math/rand"
-	"time"
 )
 
 type RoomStartHandler interface {
@@ -17,8 +17,8 @@ type RoomNextRoundHandler interface {
 
 type RoomType interface {
 	CanPause() bool
-	RandSpells(games, ranks []string) ([]*Spell, error)
-	HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error)
+	RandSpells(games, ranks []string, difficulty [3]int) ([]*Spell, error)
+	HandleUpdateSpell(token string, idx uint32, status SpellStatus, now int64) (tokens []string, newStatus SpellStatus, err error)
 }
 
 func (x *Room) Type() RoomType {
@@ -42,17 +42,16 @@ func (r RoomTypeNormal) CanPause() bool {
 	return true
 }
 
-func (r RoomTypeNormal) RandSpells(games, ranks []string) ([]*Spell, error) {
-	return RandSpells(games, ranks, [3]int{10, 10, 5})
+func (r RoomTypeNormal) RandSpells(games, ranks []string, difficulty [3]int) ([]*Spell, error) {
+	return RandSpells(games, ranks, difficulty)
 }
 
-func (r RoomTypeNormal) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
+func (r RoomTypeNormal) HandleUpdateSpell(token string, idx uint32, status SpellStatus, now int64) (tokens []string, newStatus SpellStatus, err error) {
 	room := r.room
 	st := room.Status[idx]
 	if status == SpellStatus_banned {
 		return nil, st, errors.New("不支持的操作")
 	}
-	now := time.Now().UnixMilli()
 	if room.PauseBeginMs != 0 && token != room.Host {
 		return nil, status, errors.New("暂停中，不能操作")
 	}
@@ -78,6 +77,10 @@ func (r RoomTypeNormal) HandleUpdateSpell(token string, idx uint32, status Spell
 		case SpellStatus_left_get:
 			newStatus = status
 		case SpellStatus_left_select:
+			remainSelectTime := room.LastGetTime[0] + 29000 - now
+			if remainSelectTime > 0 {
+				return nil, st, errors.New(fmt.Sprint("还有", remainSelectTime/1000+1, "秒才能选卡"))
+			}
 			if st == SpellStatus_right_select {
 				newStatus = SpellStatus_both_select
 			} else {
@@ -105,6 +108,10 @@ func (r RoomTypeNormal) HandleUpdateSpell(token string, idx uint32, status Spell
 		case SpellStatus_right_get:
 			newStatus = status
 		case SpellStatus_right_select:
+			remainSelectTime := room.LastGetTime[1] + 29000 - now
+			if remainSelectTime > 0 {
+				return nil, st, errors.New(fmt.Sprint("还有", remainSelectTime/1000+1, "秒才能选卡"))
+			}
 			if st == SpellStatus_left_select {
 				newStatus = SpellStatus_both_select
 			} else {
@@ -147,11 +154,11 @@ func (r RoomTypeBP) OnStart() {
 	}
 }
 
-func (r RoomTypeBP) RandSpells(games, ranks []string) ([]*Spell, error) {
-	return RandSpells(games, ranks, [3]int{5, 15, 5})
+func (r RoomTypeBP) RandSpells(games, ranks []string, difficulty [3]int) ([]*Spell, error) {
+	return RandSpells(games, ranks, difficulty)
 }
 
-func (r RoomTypeBP) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
+func (r RoomTypeBP) HandleUpdateSpell(token string, idx uint32, status SpellStatus, _ int64) (tokens []string, newStatus SpellStatus, err error) {
 	room := r.room
 	st := room.Status[idx]
 	switch token {
@@ -274,11 +281,11 @@ func (r RoomTypeLink) OnStart() {
 	r.room.LinkData = &LinkData{LinkIdxA: []uint32{0}, LinkIdxB: []uint32{4}}
 }
 
-func (r RoomTypeLink) RandSpells(games, ranks []string) ([]*Spell, error) {
-	return RandSpells2(games, ranks, [3]int{5, 15, 5})
+func (r RoomTypeLink) RandSpells(games, ranks []string, difficulty [3]int) ([]*Spell, error) {
+	return RandSpells2(games, ranks, difficulty)
 }
 
-func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellStatus) (tokens []string, newStatus SpellStatus, err error) {
+func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellStatus, _ int64) (tokens []string, newStatus SpellStatus, err error) {
 	room := r.room
 	st := room.Status[idx]
 	if status == SpellStatus_banned {

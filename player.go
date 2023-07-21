@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+var robotPlayer = Player{Token: "训练用毛玉", Name: "训练用毛玉"}
+
 func (s *bingoServer) buildPlayerInfo(token string) (*myws.Message, []string, error) {
 	var message = &myws.Message{}
 	var tokens []string

@@ -22,12 +22,16 @@ message room {
   bool locked = 12; // 连续多局就需要锁上
   uint32 need_win = 13; // 需要赢几局才算赢
   repeated uint32 change_card_count = 14;
-  int64 total_pause_ms = 15; // 累计暂停时长，毫秒
-  int64 pause_begin_ms = 16; // 开始暂停时刻，毫秒，0表示没暂停
-  int32 last_winner = 17; // 上一场是谁赢，1或2
-  bp_data bp_data = 18;
-  link_data link_data = 19;
-  int32 phase = 20; // 纯客户端用，服务器只记录
+  repeated int64 last_get_time = 15; // 上次收卡时间
+  int64 total_pause_ms = 16; // 累计暂停时长，毫秒
+  int64 pause_begin_ms = 17; // 开始暂停时刻，毫秒，0表示没暂停
+  int32 last_winner = 18; // 上一场是谁赢，1或2
+  bp_data bp_data = 19;
+  link_data link_data = 20;
+  int32 phase = 21; // 纯客户端用，服务器只记录
+  repeated string watchers = 22; // 观众
+  int32 difficulty = 23;
+  bool enable_tools = 24;
 }
 
 message bp_data {
@@ -40,12 +44,12 @@ message bp_data {
 message link_data {
   repeated uint32 link_idx_a = 1;
   repeated uint32 link_idx_b = 2;
-  reserved 3;
-  reserved "finish_select";
-  int64 start_ms_a = 4;
-  int64 end_ms_a = 5;
+  int64 start_ms_a = 3;
+  int64 end_ms_a = 4;
+  int32 event_a = 5;
   int64 start_ms_b = 6;
   int64 end_ms_b = 7;
+  int32 event_b = 8;
 }
 
 message spell {

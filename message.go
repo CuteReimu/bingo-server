@@ -47,6 +47,8 @@ func init() {
 	initMessage(c, (*LinkDataSc)(nil))
 	initMessage(c, (*SetPhaseCs)(nil))
 	initMessage(c, (*SetPhaseSc)(nil))
+	initMessage(c, (*SitDownCs)(nil))
+	initMessage(c, (*StandUpCs)(nil))
 }
 
 func initMessage(c cellnet.Codec, i any) {
@@ -95,6 +97,7 @@ type RoomInfoSc struct {
 	Started         bool     `json:"started,omitempty"`
 	Score           []uint32 `json:"score,omitempty"`
 	Winner          int32    `json:"winner,omitempty"`
+	Watchers        []string `json:"watchers,omitempty"`
 }
 
 func (m *RoomInfoSc) String() string {
@@ -103,9 +106,11 @@ func (m *RoomInfoSc) String() string {
 }
 
 type CreateRoomCs struct {
-	Name   string `json:"name"`
-	RoomId string `json:"rid"`
-	Type   int32  `json:"type"`
+	Name     string `json:"name"`
+	RoomId   string `json:"rid"`
+	Type     int32  `json:"type"`
+	Solo     bool   `json:"solo"`
+	AddRobot bool   `json:"add_robot"`
 }
 
 func (m *CreateRoomCs) String() string {
@@ -167,11 +172,14 @@ func (m *HeartSc) String() string {
 }
 
 type StartGameCs struct {
-	GameTime  uint32   `json:"game_time"` // 游戏总时间（不含倒计时），单位：分
-	Countdown uint32   `json:"countdown"` // 倒计时，单位：秒
-	Games     []string `json:"games"`
-	Ranks     []string `json:"ranks"`
-	NeedWin   uint32   `json:"need_win"`
+	GameTime    uint32   `json:"game_time"` // 游戏总时间（不含倒计时），单位：分
+	Countdown   uint32   `json:"countdown"` // 倒计时，单位：秒
+	Games       []string `json:"games"`
+	Ranks       []string `json:"ranks"`
+	NeedWin     uint32   `json:"need_win"`
+	Difficulty  int32    `json:"difficulty"`
+	EnableTools bool     `json:"enable_tools"`
+	IsPrivate   bool     `json:"is_private"`
 }
 
 func (m *StartGameCs) String() string {
@@ -193,6 +201,9 @@ type SpellListSc struct {
 	Status         []int32   `json:"status,omitempty"`
 	Phase          int32     `json:"phase"`
 	Link           *LinkData `json:"link_data,omitempty"`
+	Difficulty     int32     `json:"difficulty"`
+	EnableTools    bool      `json:"enable_tools"`
+	LastGetTime    []int64   `json:"last_get_time"`
 }
 
 func (m *SpellListSc) String() string {
@@ -296,7 +307,7 @@ func (m *NextRoundSc) String() string {
 
 type LinkTimeCs struct {
 	Whose int32 `json:"whose"`
-	Start bool  `json:"start"`
+	Event int32 `json:"event"`
 }
 
 func (m *LinkTimeCs) String() string {
@@ -325,6 +336,22 @@ type SetPhaseSc struct {
 }
 
 func (m *SetPhaseSc) String() string {
+	buf, _ := json.Marshal(m)
+	return string(buf)
+}
+
+type SitDownCs struct {
+}
+
+func (m *SitDownCs) String() string {
+	buf, _ := json.Marshal(m)
+	return string(buf)
+}
+
+type StandUpCs struct {
+}
+
+func (m *StandUpCs) String() string {
 	buf, _ := json.Marshal(m)
 	return string(buf)
 }

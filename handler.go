@@ -6,6 +6,7 @@ import (
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
+	"regexp"
 	"time"
 )
 
@@ -23,7 +24,7 @@ func (m *NextRoundCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		if err != nil {
 			return err
 		}
-		if room.Host != token {
+		if !room.IsAdmin(token) {
 			return errors.New("没有权限")
 		}
 		if r, ok := room.Type().(RoomNextRoundHandler); !ok {
@@ -71,8 +72,8 @@ func (m *PauseCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName str
 		if !room.Type().CanPause() {
 			return errors.New("不支持暂停的游戏类型")
 		}
-		if room.Host != token {
-			return errors.New("你不是房主")
+		if !room.IsAdmin(token) {
+			return errors.New("没有权限")
 		}
 		if !room.Started {
 			return errors.New("游戏还没开始，不能暂停")
@@ -127,8 +128,8 @@ func (m *ChangeCardCountCs) Handle(s *bingoServer, _ cellnet.Session, token, pro
 		if err != nil {
 			return err
 		}
-		if room.Host != token {
-			return errors.New("你不是房主")
+		if !room.IsAdmin(token) {
+			return errors.New("没有权限")
 		}
 		room.ChangeCardCount[0] = counts[0]
 		room.ChangeCardCount[1] = counts[1]
@@ -154,8 +155,8 @@ func (m *ResetRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		if err != nil {
 			return err
 		}
-		if room.Host != token {
-			return errors.New("你不是房主")
+		if !room.IsAdmin(token) {
+			return errors.New("没有权限")
 		}
 		if room.Started {
 			return errors.New("游戏已开始，不能重置房间")
@@ -166,6 +167,7 @@ func (m *ResetRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		room.Locked = false
 		for i := range room.ChangeCardCount {
 			room.ChangeCardCount[i] = 0
+			room.LastGetTime[i] = 0
 		}
 		return SetRoom(txn, room)
 	})
@@ -205,11 +207,15 @@ func (m *UpdateSpellCs) Handle(s *bingoServer, _ cellnet.Session, token, protoNa
 		if !room.Started {
 			return errors.New("游戏还没开始")
 		}
-		tokens, newStatus, err = room.Type().HandleUpdateSpell(token, idx, status)
+		now := time.Now().UnixMilli()
+		tokens, newStatus, err = room.Type().HandleUpdateSpell(token, idx, status, now)
 		if err != nil {
 			return err
 		}
 		room.Status[idx] = newStatus
+		if playerIndex := slices.Index(room.Players, token); playerIndex >= 0 && status.isSelectStatus() {
+			room.LastGetTime[playerIndex] = now
+		}
 		if room.BpData != nil {
 			whoseTurn = room.BpData.WhoseTurn
 			banPick = room.BpData.BanPick
@@ -261,8 +267,8 @@ func (m *StopGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName 
 		if err != nil {
 			return err
 		}
-		if room.Host != token {
-			return errors.New("你不是房主")
+		if !room.IsAdmin(token) {
+			return errors.New("没有权限")
 		} else if !room.Started {
 			return errors.New("游戏还没开始")
 		}
@@ -296,21 +302,11 @@ func (m *StopGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName 
 }
 
 func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, protoName string) error {
-	var spells []*Spell
-	var startTime int64
-	var gameTime, countdown uint32
-	var status []int32
-	var needWin uint32
-	var totalPauseMs, pauseBeginMs int64
-	var whoseTurn, banPick, phase int32
-	var linkData *LinkData
-	var trigger string
-	err := db.View(func(txn *badger.Txn) error {
+	return db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
 		if err != nil {
 			return err
 		}
-		trigger = player.Name
 		if len(player.RoomId) == 0 {
 			return errors.New("不在房间里")
 		}
@@ -321,53 +317,39 @@ func (m *GetSpellsCs) Handle(_ *bingoServer, session cellnet.Session, token, pro
 		if !room.Started {
 			return errors.New("游戏还未开始")
 		}
-		spells = room.Spells
-		startTime = room.StartMs
-		countdown = room.Countdown
-		gameTime = room.GameTime
-		needWin = room.NeedWin
-		totalPauseMs = room.TotalPauseMs
-		pauseBeginMs = room.PauseBeginMs
+		status := make([]int32, 0, len(room.Status))
 		for _, st := range room.Status {
-			if token == room.Players[0] {
-				status = append(status, int32(st.hideRightSelect()))
-			} else if token == room.Players[1] {
-				status = append(status, int32(st.hideLeftSelect()))
-			} else {
-				status = append(status, int32(st))
-			}
+			status = append(status, int32(st))
 		}
+		var whoseTurn, banPick int32
 		if room.BpData != nil {
 			whoseTurn = room.BpData.WhoseTurn
 			banPick = room.BpData.BanPick
 		}
-		linkData = room.LinkData
-		phase = room.Phase
+		session.Send(&myws.Message{
+			Reply:   protoName,
+			Trigger: player.Name,
+			Data: &SpellListSc{
+				Spells:         room.Spells,
+				Time:           time.Now().UnixMilli(),
+				StartTime:      room.StartMs,
+				GameTime:       room.GameTime,
+				Countdown:      room.Countdown,
+				NeedWin:        room.NeedWin,
+				WhoseTurn:      whoseTurn,
+				BanPick:        banPick,
+				TotalPauseTime: room.TotalPauseMs,
+				PauseBeginMs:   room.PauseBeginMs,
+				Status:         status,
+				Phase:          room.Phase,
+				Link:           room.LinkData,
+				Difficulty:     room.Difficulty,
+				EnableTools:    room.EnableTools,
+				LastGetTime:    room.LastGetTime,
+			},
+		})
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	session.Send(&myws.Message{
-		Reply:   protoName,
-		Trigger: trigger,
-		Data: &SpellListSc{
-			Spells:         spells,
-			Time:           time.Now().UnixMilli(),
-			StartTime:      startTime,
-			GameTime:       gameTime,
-			Countdown:      countdown,
-			NeedWin:        needWin,
-			WhoseTurn:      whoseTurn,
-			BanPick:        banPick,
-			TotalPauseTime: totalPauseMs,
-			PauseBeginMs:   pauseBeginMs,
-			Status:         status,
-			Link:           linkData,
-			Phase:          phase,
-		},
-	})
-	return nil
 }
 
 func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName string) error {
@@ -402,6 +384,7 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 	var whoseTurn, banPick, phase int32
 	var linkData *LinkData
 	var trigger string
+	var lastGetTime []int64
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
 		if err != nil {
@@ -415,14 +398,25 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		if err != nil {
 			return err
 		}
-		if room.Host != token {
-			return errors.New("你不是房主")
+		if !room.IsAdmin(token) {
+			return errors.New("没有权限")
 		} else if room.Started {
 			return errors.New("游戏已经开始")
 		} else if slices.ContainsFunc(room.Players, func(s string) bool { return len(s) == 0 }) {
 			return errors.New("玩家没满")
 		}
-		spells, err = room.Type().RandSpells(games, ranks)
+		var difficulty [3]int
+		switch m.Difficulty {
+		case 1:
+			difficulty = difficultyE
+		case 2:
+			difficulty = difficultyN
+		case 3:
+			difficulty = difficultyL
+		default:
+			difficulty = difficultyRandom()
+		}
+		spells, err = room.Type().RandSpells(games, ranks, difficulty)
 		if err != nil {
 			return errors.Wrap(err, "随符卡失败")
 		}
@@ -434,6 +428,8 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		room.Status = make([]SpellStatus, len(spells))
 		room.NeedWin = needWin
 		room.Locked = true
+		room.Difficulty = m.Difficulty
+		room.EnableTools = m.EnableTools
 		if roomType, ok := room.Type().(RoomStartHandler); ok {
 			roomType.OnStart()
 		}
@@ -451,16 +447,19 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 	message := &myws.Message{
 		Trigger: trigger,
 		Data: &SpellListSc{
-			Spells:    spells,
-			Time:      startTime,
-			StartTime: startTime,
-			GameTime:  gameTime,
-			Countdown: countdown,
-			NeedWin:   needWin,
-			WhoseTurn: whoseTurn,
-			BanPick:   banPick,
-			Link:      linkData,
-			Phase:     phase,
+			Spells:      spells,
+			Time:        startTime,
+			StartTime:   startTime,
+			GameTime:    gameTime,
+			Countdown:   countdown,
+			NeedWin:     needWin,
+			WhoseTurn:   whoseTurn,
+			BanPick:     banPick,
+			Link:        linkData,
+			Phase:       phase,
+			Difficulty:  m.Difficulty,
+			EnableTools: m.EnableTools,
+			LastGetTime: lastGetTime,
 		},
 	}
 	s.NotifyPlayersInRoom(token, protoName, message)
@@ -512,8 +511,8 @@ func (m *UpdateRoomTypeCs) Handle(s *bingoServer, _ cellnet.Session, token, prot
 		} else if err != nil {
 			return err
 		}
-		if room.Host != token {
-			return errors.New("不是房主")
+		if !room.IsAdmin(token) {
+			return errors.New("没有权限")
 		}
 		room.RoomType = roomType
 		return SetRoom(txn, room)
@@ -548,41 +547,54 @@ func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		if room.Host != player.Token && room.Locked {
 			return errors.New("连续比赛没结束，不能退出")
 		}
-		player.RoomId = ""
-		player.Name = ""
-		if room.Host == player.Token {
-			for i := range room.Players {
-				if len(room.Players[i]) != 0 && room.Players[i] != room.Host {
-					tokens = append(tokens, room.Players[i])
-					p, err := GetPlayer(txn, room.Players[i])
-					if err != nil {
-						return err
-					}
-					p.RoomId = ""
-					p.Name = ""
-					err = SetPlayer(txn, p)
-					if err != nil {
+		if room.Host == token {
+			for _, p := range room.Players {
+				if len(p) > 0 && p != robotPlayer.Token {
+					tokens = append(tokens, p)
+					if err = SetPlayer(txn, &Player{Token: p}); err != nil {
 						return err
 					}
 				}
 			}
-			if err = DelRoom(txn, room.RoomId); err != nil {
-				return err
+			for _, p := range room.Watchers {
+				tokens = append(tokens, p)
+				if err = SetPlayer(txn, &Player{Token: p}); err != nil {
+					return err
+				}
 			}
 			roomDestroyed = true
 		} else {
-			for i := range room.Players {
-				if room.Players[i] == player.Token {
-					room.Players[i] = ""
-				} else {
-					tokens = append(tokens, room.Players[i])
+			if index := slices.Index(room.Players, token); index >= 0 {
+				room.Players[index] = ""
+			} else {
+				if index = slices.Index(room.Watchers, token); index >= 0 {
+					room.Watchers = append(room.Watchers[:index], room.Watchers[index+1:]...)
 				}
+				var roomPlayers []string
+				for _, s := range room.Players {
+					if len(s) > 0 && s != robotPlayer.Token {
+						roomPlayers = append(tokens, s)
+					}
+				}
+				if len(room.Host) > 0 {
+					tokens = append(tokens, room.Host)
+				}
+				tokens = append(tokens, roomPlayers...)
+				tokens = append(tokens, room.Watchers...)
+				roomDestroyed = len(room.Host) == 0 && len(roomPlayers) == 0
 			}
-			err = SetRoom(txn, room)
-			if err != nil {
+		}
+		if roomDestroyed {
+			if err = DelRoom(txn, room.RoomId); err != nil {
+				return err
+			}
+		} else {
+			if err = SetRoom(txn, room); err != nil {
 				return err
 			}
 		}
+		player.RoomId = ""
+		player.Name = ""
 		return SetPlayer(txn, player)
 	})
 	if err != nil {
@@ -649,37 +661,38 @@ func (m *JoinRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName 
 		} else if err != nil {
 			return err
 		}
-		host, err := GetPlayer(txn, room.Host)
-		if err != nil {
-			return err
+		if len(room.Host) > 0 {
+			host, err := GetPlayer(txn, room.Host)
+			if err != nil {
+				return err
+			}
+			if host.Name == name {
+				return errors.New("名字重复")
+			}
 		}
-		if host.Name == name {
+		hasSameName := func(token1 string) bool {
+			if len(token1) == 0 {
+				return false
+			}
+			player, _ := GetPlayer(txn, token1)
+			return player != nil && player.Name == name
+		}
+		if slices.ContainsFunc(room.Players, hasSameName) {
 			return errors.New("名字重复")
+		}
+		if slices.ContainsFunc(room.Watchers, hasSameName) {
+			return errors.New("名字重复")
+		}
+		index := slices.Index(room.Players, "")
+		if index >= 0 {
+			room.Players[index] = token
+		} else {
+			room.Watchers = append(room.Watchers, token)
 		}
 		player.RoomId = rid
 		player.Name = name
 		if err = SetPlayer(txn, player); err != nil {
 			return err
-		}
-		var ok bool
-		for i := range room.Players {
-			if ok {
-				if len(room.Players[i]) != 0 {
-					player2, err := GetPlayer(txn, room.Players[i])
-					if err != nil {
-						return err
-					}
-					if player2.Name == name {
-						return errors.New("名字重复")
-					}
-				}
-			} else if len(room.Players[i]) == 0 {
-				ok = true
-				room.Players[i] = player.Token
-			}
-		}
-		if !ok {
-			return errors.New("房间满了")
 		}
 		return SetRoom(txn, room)
 	})
@@ -702,8 +715,8 @@ func (m *CreateRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoNam
 	if len(rid) == 0 {
 		return errors.New("房间ID为空")
 	}
-	if len(rid) > 16 {
-		return errors.New("房间ID太长")
+	if matched, _ := regexp.MatchString(`^\d{1,16}$`, rid); !matched {
+		return errors.New("房间ID不合法")
 	}
 	roomType := m.Type
 	if roomType < 1 || roomType > 3 {
@@ -729,13 +742,24 @@ func (m *CreateRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoNam
 		} else if err != badger.ErrKeyNotFound {
 			return errors.WithStack(err)
 		}
+		var host string
+		if !m.Solo {
+			host = token
+		}
 		var room = Room{
 			RoomId:          rid,
 			RoomType:        roomType,
-			Host:            token,
+			Host:            host,
 			Players:         make([]string, 2),
 			Score:           make([]uint32, 2),
 			ChangeCardCount: make([]uint32, 2),
+			LastGetTime:     make([]int64, 2),
+		}
+		if m.Solo {
+			room.Players[0] = token
+		}
+		if m.AddRobot {
+			room.Players[1] = robotPlayer.Token
 		}
 		player.RoomId = rid
 		player.Name = name
@@ -776,22 +800,22 @@ func (m *LoginCs) Handle(s *bingoServer, session cellnet.Session, _, protoName s
 		session.Send(&myws.Message{Reply: protoName, Data: &ErrorSc{Code: 400, Msg: "invalid token"}})
 		return nil
 	}
+	if oldChannel := s.tokenConnMap[m.Token]; oldChannel != nil {
+		log.Warnln("already online, kick old session")
+		oldChannel.Send(&myws.Message{Data: &ErrorSc{Code: -403, Msg: "有另一个客户端登录了此账号"}})
+	}
 	err := db.Update(func(txn *badger.Txn) error {
 		player, err := GetPlayerOrNew(txn, tokenStr)
 		if err != nil {
 			return err
 		}
 		player.Token = tokenStr
-		if _, ok := s.tokenConnMap[tokenStr]; ok {
-			return errors.New("already online")
-		} else {
-			s.tokenConnMap[tokenStr] = session
-		}
 		return SetPlayer(txn, player)
 	})
 	if err != nil {
 		return err
 	}
+	s.tokenConnMap[tokenStr] = session
 	session.(cellnet.ContextSet).SetContext(playerConnToken, tokenStr)
 	message, _, err := s.buildPlayerInfo(tokenStr)
 	if err != nil {
@@ -804,6 +828,9 @@ func (m *LoginCs) Handle(s *bingoServer, session cellnet.Session, _, protoName s
 
 func (m *LinkTimeCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName string) error {
 	if m.Whose != 0 && m.Whose != 1 {
+		return errors.New("参数错误")
+	}
+	if m.Event != 1 && m.Event != 2 && m.Event != 3 {
 		return errors.New("参数错误")
 	}
 	var message *LinkDataSc
@@ -819,15 +846,16 @@ func (m *LinkTimeCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName 
 		if err != nil {
 			return err
 		}
-		if room.Host != token {
-			return errors.New("你不是房主")
+		if !room.IsAdmin(token) {
+			return errors.New("没有权限")
 		}
 		if _, ok := room.Type().(RoomTypeLink); !ok {
 			return errors.New("不支持这种操作")
 		}
 		data := room.LinkData
 		if m.Whose == 0 {
-			if m.Start {
+			switch m.Event {
+			case 1:
 				if data.StartMsA == 0 && data.EndMsA == 0 { // 开始
 					data.StartMsA = time.Now().UnixMilli()
 				} else if data.StartMsA > 0 && data.EndMsA > 0 { // 继续
@@ -836,15 +864,17 @@ func (m *LinkTimeCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName 
 				} else {
 					return errors.New("已经在计时了，不能开始")
 				}
-			} else {
+			case 2, 3:
 				if data.StartMsA > 0 && data.EndMsA == 0 { // 停止/暂停
 					data.EndMsA = time.Now().UnixMilli()
 				} else {
 					return errors.New("还未开始计时，不能停止")
 				}
 			}
+			data.EventA = m.Event
 		} else {
-			if m.Start {
+			switch m.Event {
+			case 1:
 				if data.StartMsB == 0 && data.EndMsB == 0 { // 开始
 					data.StartMsB = time.Now().UnixMilli()
 				} else if data.StartMsB > 0 && data.EndMsB > 0 { // 继续
@@ -853,13 +883,14 @@ func (m *LinkTimeCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName 
 				} else {
 					return errors.New("已经在计时了，不能开始")
 				}
-			} else {
+			case 2, 3:
 				if data.StartMsB > 0 && data.EndMsB == 0 { // 停止/暂停
 					data.EndMsB = time.Now().UnixMilli()
 				} else {
 					return errors.New("还未开始计时，不能停止")
 				}
 			}
+			data.EventB = m.Event
 		}
 		message = (*LinkDataSc)(data)
 		return SetRoom(txn, room)
@@ -884,8 +915,8 @@ func (m *SetPhaseCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName 
 		if err != nil {
 			return err
 		}
-		if room.Host != token {
-			return errors.New("你不是房主")
+		if !room.IsAdmin(token) {
+			return errors.New("没有权限")
 		}
 		room.Phase = m.Phase
 		return SetRoom(txn, room)
@@ -894,5 +925,80 @@ func (m *SetPhaseCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName 
 		return err
 	}
 	s.NotifyPlayersInRoom(token, protoName, &myws.Message{Data: &SetPhaseSc{Phase: m.Phase}})
+	return nil
+}
+
+func (m *SitDownCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName string) error {
+	err := db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Started {
+			return errors.New("游戏已开始")
+		}
+		if room.Locked {
+			return errors.New("连续比赛还未结束")
+		}
+		index := slices.Index(room.Players, "")
+		if index < 0 {
+			return errors.New("房间已满")
+		}
+		watcherIndex := slices.Index(room.Watchers, token)
+		if watcherIndex < 0 {
+			return errors.New("你不是观众")
+		}
+		room.Watchers = append(room.Watchers[:watcherIndex], room.Watchers[watcherIndex+1:]...)
+		room.Players[index] = token
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	s.NotifyPlayerInfo(token, protoName)
+	return nil
+}
+
+func (m *StandUpCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName string) error {
+	err := db.Update(func(txn *badger.Txn) error {
+		player, err := GetPlayer(txn, token)
+		if err != nil {
+			return err
+		}
+		if len(player.RoomId) == 0 {
+			return errors.New("不在房间里")
+		}
+		room, err := GetRoom(txn, player.RoomId)
+		if err != nil {
+			return err
+		}
+		if room.Started {
+			return errors.New("游戏已开始")
+		}
+		if room.Locked {
+			return errors.New("连续比赛还未结束")
+		}
+		index := slices.Index(room.Players, token)
+		if index < 0 {
+			return errors.New("你不是选手")
+		}
+		if len(room.Host) == 0 && (len(room.Players[1-index]) == 0 || room.Players[1-index] == robotPlayer.Token) {
+			return errors.New("你是房间里的最后一位选手，不能成为观众")
+		}
+		room.Players[index] = ""
+		room.Watchers = append(room.Watchers, token)
+		return SetRoom(txn, room)
+	})
+	if err != nil {
+		return err
+	}
+	s.NotifyPlayerInfo(token, protoName)
 	return nil
 }

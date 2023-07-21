@@ -73,6 +73,14 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (*RoomInfoSc, []string, error) {
 		ChangeCardCount: room.ChangeCardCount,
 		Started:         room.Started,
 		Score:           room.Score,
+		Watchers:        room.Watchers,
 	}
 	return ret, tokens, err
+}
+
+func (x *Room) IsAdmin(token string) bool {
+	if len(x.Host) > 0 {
+		return token == x.Host
+	}
+	return slices.Contains(x.Players, token)
 }

@@ -181,6 +181,10 @@ func (x SpellStatus) isSelectStatus() bool {
 	return x == SpellStatus_left_select || x == SpellStatus_right_select || x == SpellStatus_both_select
 }
 
+func (x SpellStatus) isGetStatus() bool {
+	return x == SpellStatus_left_get || x == SpellStatus_right_get || x == SpellStatus_both_get
+}
+
 func (x SpellStatus) isLeftStatus() bool {
 	return x == SpellStatus_left_select || x == SpellStatus_left_get || x == SpellStatus_both_select || x == SpellStatus_both_get
 }
