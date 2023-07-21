@@ -14,7 +14,7 @@ require (
 	github.com/xuri/excelize/v2 v2.7.0
 	golang.org/x/exp v0.0.0-20230108222341-4b8118a2686a
 	golang.org/x/time v0.3.0
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.31.0
 )
 
 require (
