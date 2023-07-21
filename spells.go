@@ -192,17 +192,3 @@ func (x SpellStatus) isLeftStatus() bool {
 func (x SpellStatus) isRightStatus() bool {
 	return x == SpellStatus_right_select || x == SpellStatus_right_get || x == SpellStatus_both_select || x == SpellStatus_both_get
 }
-
-func (x SpellStatus) hideLeftSelect() SpellStatus {
-	if x == SpellStatus_both_select {
-		return SpellStatus_right_select
-	}
-	return x
-}
-
-func (x SpellStatus) hideRightSelect() SpellStatus {
-	if x == SpellStatus_both_select {
-		return SpellStatus_left_select
-	}
-	return x
-}
