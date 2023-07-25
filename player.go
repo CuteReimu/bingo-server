@@ -15,7 +15,6 @@ func (s *bingoServer) buildPlayerInfo(token string) (*myws.Message, []string, er
 	var tokens []string
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
-		log.Infoln("get player: ", player)
 		if err != nil {
 			return err
 		}
@@ -42,7 +41,6 @@ func (s *bingoServer) buildPlayerInfo(token string) (*myws.Message, []string, er
 		message.Data = &RoomInfoSc{}
 		tokens = append(tokens, token)
 	}
-	log.Infoln("buildPlayerInfo: ", message, tokens)
 	return message, tokens, nil
 }
 
