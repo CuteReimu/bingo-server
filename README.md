@@ -32,7 +32,7 @@
 }
 ```
 
-协议与`org.tfcc.bingo.message`下的类(`Dispatcher.kt`、`Handler.kt`、`Message.kt`除外)一一对应。
+协议与`message.go`下的结构体一一对应。
 
 例如`"name": "error_sc"`对应ErrorSc
 
