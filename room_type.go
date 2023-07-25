@@ -282,7 +282,7 @@ func (r RoomTypeLink) OnStart() {
 }
 
 func (r RoomTypeLink) RandSpells(games, ranks []string, difficulty [3]int) ([]*Spell, error) {
-	return RandSpells2(games, ranks, difficulty)
+	return RandSpellsLink(games, ranks, difficulty)
 }
 
 func (r RoomTypeLink) HandleUpdateSpell(token string, idx uint32, status SpellStatus, _ int64) (tokens []string, newStatus SpellStatus, err error) {
