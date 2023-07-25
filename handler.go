@@ -570,19 +570,19 @@ func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 				if index = slices.Index(room.Watchers, token); index >= 0 {
 					room.Watchers = append(room.Watchers[:index], room.Watchers[index+1:]...)
 				}
-				var roomPlayers []string
-				for _, s := range room.Players {
-					if len(s) > 0 && s != robotPlayer.Token {
-						roomPlayers = append(tokens, s)
-					}
-				}
-				if len(room.Host) > 0 {
-					tokens = append(tokens, room.Host)
-				}
-				tokens = append(tokens, roomPlayers...)
-				tokens = append(tokens, room.Watchers...)
-				roomDestroyed = len(room.Host) == 0 && len(roomPlayers) == 0
 			}
+			var roomPlayers []string
+			for _, s := range room.Players {
+				if len(s) > 0 && s != robotPlayer.Token {
+					roomPlayers = append(tokens, s)
+				}
+			}
+			if len(room.Host) > 0 {
+				tokens = append(tokens, room.Host)
+			}
+			tokens = append(tokens, roomPlayers...)
+			tokens = append(tokens, room.Watchers...)
+			roomDestroyed = len(room.Host) == 0 && len(roomPlayers) == 0
 		}
 		if roomDestroyed {
 			if err = DelRoom(txn, room.RoomId); err != nil {
@@ -616,11 +616,13 @@ func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 					message, _, err = s.buildPlayerInfo(t)
 					if err != nil {
 						log.Errorf("db error: %+v", err)
+					} else {
 						message.Trigger = token
-						break
 					}
 				}
-				conn.Send(message)
+				if message != nil {
+					conn.Send(message)
+				}
 			}
 		}
 	}
