@@ -15,6 +15,7 @@ func (s *bingoServer) buildPlayerInfo(token string) (*myws.Message, []string, er
 	var tokens []string
 	err := db.View(func(txn *badger.Txn) error {
 		player, err := GetPlayer(txn, token)
+		log.Infoln("get player: ", player)
 		if err != nil {
 			return err
 		}
@@ -41,6 +42,7 @@ func (s *bingoServer) buildPlayerInfo(token string) (*myws.Message, []string, er
 		message.Data = &RoomInfoSc{}
 		tokens = append(tokens, token)
 	}
+	log.Infoln("buildPlayerInfo: ", message, tokens)
 	return message, tokens, nil
 }
 
@@ -118,6 +120,9 @@ func (s *bingoServer) NotifyPlayersInRoom(token, reply string, message *myws.Mes
 }
 
 func GetPlayer(txn *badger.Txn, token string) (*Player, error) {
+	if token == robotPlayer.Token {
+		return &robotPlayer, nil
+	}
 	key := append([]byte("token: "), []byte(token)...)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
@@ -136,6 +141,9 @@ func GetPlayer(txn *badger.Txn, token string) (*Player, error) {
 }
 
 func GetPlayerOrNew(txn *badger.Txn, token string) (*Player, error) {
+	if token == robotPlayer.Token {
+		return &robotPlayer, nil
+	}
 	key := append([]byte("token: "), []byte(token)...)
 	item, err := txn.Get(key)
 	if err == badger.ErrKeyNotFound {
@@ -154,6 +162,9 @@ func GetPlayerOrNew(txn *badger.Txn, token string) (*Player, error) {
 }
 
 func SetPlayer(txn *badger.Txn, player *Player) error {
+	if player.Token == robotPlayer.Token {
+		return nil
+	}
 	key := append([]byte("token: "), []byte(player.Token)...)
 	val, err := proto.Marshal(player)
 	if err != nil {

@@ -42,13 +42,17 @@ func DelRoom(txn *badger.Txn, roomId string) error {
 
 func PackRoomInfo(txn *badger.Txn, room *Room) (*RoomInfoSc, []string, error) {
 	var tokens []string
-	host, err := GetPlayer(txn, room.Host)
-	if IsErrKeyNotFound(err) {
-		return nil, nil, nil
-	} else if err != nil {
-		return nil, nil, err
+	var hostName string
+	if len(room.Host) > 0 {
+		host, err := GetPlayer(txn, room.Host)
+		if IsErrKeyNotFound(err) {
+			return nil, nil, nil
+		} else if err != nil {
+			return nil, nil, err
+		}
+		tokens = append(tokens, host.Token)
+		hostName = host.Name
 	}
-	tokens = append(tokens, host.Token)
 	players := make([]string, len(room.Players))
 	for i := range players {
 		if len(room.Players[i]) > 0 {
@@ -68,14 +72,14 @@ func PackRoomInfo(txn *badger.Txn, room *Room) (*RoomInfoSc, []string, error) {
 	ret := &RoomInfoSc{
 		RoomId:          room.RoomId,
 		Type:            room.RoomType,
-		HostName:        host.Name,
+		HostName:        hostName,
 		PlayerNames:     players,
 		ChangeCardCount: room.ChangeCardCount,
 		Started:         room.Started,
 		Score:           room.Score,
 		Watchers:        room.Watchers,
 	}
-	return ret, tokens, err
+	return ret, tokens, nil
 }
 
 func (x *Room) IsAdmin(token string) bool {
