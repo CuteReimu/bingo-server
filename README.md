@@ -39,3 +39,25 @@
 ## 贡献
 
 持久化存储采用protobuf进行序列化。当你需要修改其结构时，先编辑`data.proto`，然后执行`go generate`即可。
+
+## 把比赛推送到QQ群
+
+通过 [mirai-http-api](https://github.com/project-mirai/mirai-api-http)
+的 **Http Adapter** 将比赛内容推送到QQ群。因此需要首先自行使用 [mirai](https://github.com/mamoe/mirai) 登录QQ。
+
+第一次运行会生成配置文件 `application.json`，修改后重启即可
+
+```json
+{
+  "push_interval": 10,
+  "enable_push": true,
+  "self_room_addr": "http://127.0.0.1:9961/room",
+  "robot_qq": 12345678,
+  "push_qq_groups": [
+    12345678,
+    12345678
+  ],
+  "mirai_http_url": "http://127.0.0.1:8080",
+  "mirai_verify_key": "XXXXXXXX"
+}
+```

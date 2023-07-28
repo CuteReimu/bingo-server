@@ -16,6 +16,7 @@ type RoomNextRoundHandler interface {
 }
 
 type RoomType interface {
+	Name() string
 	CanPause() bool
 	RandSpells(games, ranks []string, difficulty [3]int) ([]*Spell, error)
 	HandleUpdateSpell(token string, idx uint32, status SpellStatus, now int64) (tokens []string, newStatus SpellStatus, err error)
@@ -36,6 +37,10 @@ func (x *Room) Type() RoomType {
 
 type RoomTypeNormal struct {
 	room *Room
+}
+
+func (r RoomTypeNormal) Name() string {
+	return "标准赛"
 }
 
 func (r RoomTypeNormal) CanPause() bool {
@@ -134,6 +139,10 @@ func (r RoomTypeNormal) HandleUpdateSpell(token string, idx uint32, status Spell
 
 type RoomTypeBP struct {
 	room *Room
+}
+
+func (r RoomTypeBP) Name() string {
+	return "BP赛"
 }
 
 func (r RoomTypeBP) CanPause() bool {
@@ -269,6 +278,10 @@ func (r RoomTypeBP) nextRound() {
 
 type RoomTypeLink struct {
 	room *Room
+}
+
+func (r RoomTypeLink) Name() string {
+	return "Link赛"
 }
 
 func (r RoomTypeLink) CanPause() bool {
