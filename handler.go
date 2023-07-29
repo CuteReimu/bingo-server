@@ -439,6 +439,7 @@ func (m *StartGameCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 		}
 		linkData = room.LinkData
 		phase = room.Phase
+		lastGetTime = room.LastGetTime
 		if !m.IsPrivate && !slices.Contains(room.Players, robotPlayer.Token) { // 单人练习模式不推送
 			miraiPusher.Push(room)
 		}

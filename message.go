@@ -196,8 +196,8 @@ type SpellListSc struct {
 	NeedWin        uint32    `json:"need_win"`
 	WhoseTurn      int32     `json:"whose_turn"`
 	BanPick        int32     `json:"ban_pick"`
-	TotalPauseTime int64     `json:"total_pause_time,omitempty"`
-	PauseBeginMs   int64     `json:"pause_begin_ms,omitempty"`
+	TotalPauseTime int64     `json:"total_pause_time"`
+	PauseBeginMs   int64     `json:"pause_begin_ms"`
 	Status         []int32   `json:"status,omitempty"`
 	Phase          int32     `json:"phase"`
 	Link           *LinkData `json:"link_data,omitempty"`

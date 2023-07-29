@@ -164,7 +164,7 @@ func (c *SpellConfig) Get(games, ranks []string, exPos []int, stars []int32) ([]
 		}
 	}
 	spellIds := make(map[string]bool)
-	result := make([]*Spell, len(stars))
+	result := make([]*Spell, 0, len(stars))
 	for i := range stars {
 		if isExMap, ok := m[stars[i]]; !ok {
 			return nil, errors.New("符卡数量不足")
@@ -183,6 +183,8 @@ func (c *SpellConfig) Get(games, ranks []string, exPos []int, stars []int32) ([]
 				spellList = spellList[1:]
 				if len(spellList) == 0 {
 					delete(gameMap, game)
+				} else {
+					gameMap[game] = spellList
 				}
 				spellId := fmt.Sprintf("%s-%d", spell.Game, spell.Id)
 				if !spellIds[spellId] {
@@ -190,11 +192,12 @@ func (c *SpellConfig) Get(games, ranks []string, exPos []int, stars []int32) ([]
 					break
 				}
 			}
+			result = append(result, spell)
 		}
 	}
 	for i := range exPos {
-		var index = exPos[i]
-		var firstTry = true
+		index := exPos[i]
+		firstTry := true
 	tryOnce:
 		for {
 			if firstTry {
@@ -225,6 +228,8 @@ func (c *SpellConfig) Get(games, ranks []string, exPos []int, stars []int32) ([]
 					spellList = spellList[1:]
 					if len(spellList) == 0 {
 						delete(gameMap, game)
+					} else {
+						gameMap[game] = spellList
 					}
 					spellId := fmt.Sprintf("%s-%d", spell.Game, spell.Id)
 					if !spellIds[spellId] {
