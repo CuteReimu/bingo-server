@@ -60,6 +60,7 @@ func (s *bingoServer) start() {
 		case *cellnet.SessionAccepted:
 			log.Infoln("session connected: ", ev.Session().ID())
 			ev.Session().(cellnet.ContextSet).SetContext(playerConnLimiter, rate.NewLimiter(5, 5))
+			ev.Session().(cellnet.ContextSet).SetContext(lastHeartTime, time.Now())
 		case *myws.Message:
 			limiter, ok := ev.Session().(cellnet.ContextSet).GetContext(playerConnLimiter)
 			if !ok || !limiter.(*rate.Limiter).Allow() {
