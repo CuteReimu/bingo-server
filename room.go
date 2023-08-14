@@ -3,15 +3,15 @@ package main
 import (
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/proto"
+	"slices"
 	"time"
 )
 
 func GetRoom(txn *badger.Txn, roomId string) (*Room, error) {
 	key := append([]byte("room: "), []byte(roomId)...)
 	item, err := txn.Get(key)
-	if err == badger.ErrKeyNotFound {
+	if IsErrKeyNotFound(err) {
 		return nil, errors.Wrap(err, "cannot find this room")
 	} else if err != nil {
 		return nil, errors.WithStack(err)

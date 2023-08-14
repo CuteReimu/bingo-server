@@ -7,10 +7,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/xuri/excelize/v2"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"io"
 	"math/rand"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 )

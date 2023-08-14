@@ -1,6 +1,6 @@
 module github.com/CuteReimu/bingo-server
 
-go 1.20
+go 1.21
 
 require (
 	github.com/davyxu/cellnet v4.1.0+incompatible
@@ -12,7 +12,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/tidwall/gjson v1.16.0
 	github.com/xuri/excelize/v2 v2.7.1
-	golang.org/x/exp v0.0.0-20230810033253-352e893a4cad
+	golang.org/x/exp v0.0.0-20230811145659-89c5cff77bcb
 	golang.org/x/time v0.3.0
 	google.golang.org/protobuf v1.31.0
 )

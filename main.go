@@ -34,7 +34,7 @@ func main() {
 	}
 	if (*address)[0] != '/' {
 		flag.Usage()
-		log.Errorln("ws address endpoint的格式不对")
+		log.Error("ws address endpoint的格式不对")
 		os.Exit(1)
 	}
 	defer initDB()()
@@ -58,7 +58,7 @@ func (s *bingoServer) start() {
 	proc.BindProcessorHandler(s.peer, "myws", func(ev cellnet.Event) {
 		switch pb := ev.Message().(type) {
 		case *cellnet.SessionAccepted:
-			log.Infoln("session connected: ", ev.Session().ID())
+			log.Info("session connected: ", ev.Session().ID())
 			ev.Session().(cellnet.ContextSet).SetContext(playerConnLimiter, rate.NewLimiter(5, 5))
 			ev.Session().(cellnet.ContextSet).SetContext(lastHeartTime, time.Now())
 		case *myws.Message:
@@ -77,11 +77,11 @@ func (s *bingoServer) start() {
 					}
 				}
 				if err := handler.Handle(s, ev.Session(), token, pb.MsgName); err != nil {
-					log.Errorf("handle failed: %s, error: %+v", pb.MsgName, err)
+					log.Error(fmt.Sprintf("handle failed: %s, error: %+v", pb.MsgName, err))
 					ev.Session().Send(&myws.Message{Reply: pb.MsgName, Data: &ErrorSc{Code: 500, Msg: err.Error()}})
 				}
 			} else {
-				log.Warnln("can not find handler: ", pb.MsgName)
+				log.Warn("can not find handler: ", pb.MsgName)
 				ev.Session().Send(&myws.Message{Reply: pb.MsgName, Data: &ErrorSc{Code: 404, Msg: "404 not found"}})
 			}
 		case *cellnet.SessionClosed:
@@ -132,7 +132,7 @@ func initDB() func() {
 	var err error
 	db, err = badger.Open(badger.DefaultOptions("db"))
 	if err != nil {
-		log.Errorln(err)
+		log.Error(fmt.Sprintf("%+v", err))
 		panic(err)
 	}
 	go func() {
@@ -148,7 +148,7 @@ func initDB() func() {
 	return func() {
 		err := db.Close()
 		if err != nil {
-			log.Errorf("close db failed: %+v", err)
+			log.Error(fmt.Sprintf("close db failed: %+v", err))
 		}
 	}
 }

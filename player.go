@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/CuteReimu/bingo-server/myws"
 	"github.com/dgraph-io/badger/v3"
 	"github.com/pkg/errors"
@@ -75,7 +76,7 @@ func (s *bingoServer) NotifyPlayerInfo(token, reply string, winnerIdx ...int32) 
 		message.Data.(*RoomInfoSc).Winner = winnerIdx[0]
 	}
 	if err != nil {
-		log.Errorf("db error: %+v", err)
+		log.Error(fmt.Sprintf("db error: %+v", err))
 	} else {
 		for _, token1 := range tokens {
 			if conn, ok := s.tokenConnMap[token1]; ok {
@@ -98,7 +99,7 @@ func (s *bingoServer) NotifyPlayersInRoom(token, reply string, message *myws.Mes
 	trigger, tokens, err := s.getAllPlayersInRoom(token)
 	message.Trigger = trigger
 	if err != nil {
-		log.Errorf("db error: %+v", err)
+		log.Error(fmt.Sprintf("db error: %+v", err))
 	} else {
 		for _, token1 := range tokens {
 			if conn, ok := s.tokenConnMap[token1]; ok {
@@ -123,7 +124,7 @@ func GetPlayer(txn *badger.Txn, token string) (*Player, error) {
 	}
 	key := append([]byte("token: "), []byte(token)...)
 	item, err := txn.Get(key)
-	if err == badger.ErrKeyNotFound {
+	if IsErrKeyNotFound(err) {
 		return nil, errors.Wrap(err, "cannot find this token")
 	} else if err != nil {
 		return nil, errors.WithStack(err)
@@ -144,7 +145,7 @@ func GetPlayerOrNew(txn *badger.Txn, token string) (*Player, error) {
 	}
 	key := append([]byte("token: "), []byte(token)...)
 	item, err := txn.Get(key)
-	if err == badger.ErrKeyNotFound {
+	if IsErrKeyNotFound(err) {
 		return new(Player), nil
 	} else if err != nil {
 		return nil, errors.WithStack(err)
