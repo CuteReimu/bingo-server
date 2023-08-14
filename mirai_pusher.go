@@ -51,27 +51,27 @@ func (p *MiraiPusher) Push(room *Room) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Error("panic recover: ", r)
+				log.Errorln("panic recover: ", r)
 			}
 		}()
 		session, err := p.verify()
 		if err != nil {
-			log.Error(fmt.Sprintf("%+v", err))
+			log.Errorf("%+v", err)
 			return
 		}
 		if err = p.bind(session); err != nil {
-			log.Error(fmt.Sprintf("%+v", err))
+			log.Errorf("%+v", err)
 			return
 		}
 		defer func() {
 			if err = p.release(session); err != nil {
-				log.Error(fmt.Sprintf("%+v", err))
+				log.Errorf("%+v", err)
 				return
 			}
 		}()
 		for _, group := range p.PushQQGroups {
 			if err = p.sendGroupMessage(session, group, text); err != nil {
-				log.Error(fmt.Sprintf("%+v", err))
+				log.Errorf("%+v", err)
 			}
 		}
 	}()

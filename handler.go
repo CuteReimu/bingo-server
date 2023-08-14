@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/CuteReimu/bingo-server/myws"
 	"github.com/davyxu/cellnet"
 	"github.com/dgraph-io/badger/v3"
@@ -620,7 +619,7 @@ func (m *LeaveRoomCs) Handle(s *bingoServer, _ cellnet.Session, token, protoName
 				if message == nil {
 					message, _, err = s.buildPlayerInfo(t)
 					if err != nil {
-						log.Error(fmt.Sprintf("db error: %+v", err))
+						log.Errorf("db error: %+v", err)
 					} else {
 						message.Trigger = token
 					}
@@ -808,7 +807,7 @@ func (m *LoginCs) Handle(s *bingoServer, session cellnet.Session, _, protoName s
 		return nil
 	}
 	if oldChannel := s.tokenConnMap[m.Token]; oldChannel != nil {
-		log.Warn("already online, kick old session")
+		log.Warnln("already online, kick old session")
 		oldChannel.Send(&myws.Message{Data: &ErrorSc{Code: -403, Msg: "有另一个客户端登录了此账号"}})
 	}
 	err := db.Update(func(txn *badger.Txn) error {

@@ -1,19 +1,21 @@
 package main
 
 import (
+	"github.com/davyxu/golog"
 	"github.com/dgraph-io/badger/v3"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/pkg/errors"
 	"io"
-	"log/slog"
 	"os"
 	"path"
 	"time"
 )
 
-var log *slog.Logger
+var log = golog.New("bingo")
 
 func init() {
+	log.SetLevel(golog.Level_Debug)
+	log.SetParts(golog.LogPart_Level, golog.LogPart_Name, golog.LogPart_Time, golog.LogPart_ShortFileName)
 	writer, err := rotatelogs.New(
 		path.Join("log", "%Y-%m-%d.log"),
 		rotatelogs.WithMaxAge(7*24*time.Hour),
@@ -22,10 +24,10 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	log = slog.New(slog.NewTextHandler(&logWriter{fileWriter: writer}, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     slog.LevelDebug,
-	}))
+	err = golog.SetOutput("bingo", &logWriter{fileWriter: writer})
+	if err != nil {
+		panic(err)
+	}
 }
 
 func IsErrKeyNotFound(err error) bool {
