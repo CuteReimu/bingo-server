@@ -10,7 +10,7 @@ require (
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
 	github.com/ozgio/strutil v0.4.0
 	github.com/pkg/errors v0.9.1
-	github.com/tidwall/gjson v1.16.0
+	github.com/tidwall/gjson v1.17.0
 	github.com/xuri/excelize/v2 v2.8.0
 	golang.org/x/exp v0.0.0-20230811145659-89c5cff77bcb
 	golang.org/x/time v0.3.0
